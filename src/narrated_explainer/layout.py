@@ -19,7 +19,9 @@ MEASURE_JS = """() => {
   const pageTop = document.body.classList.contains('nx-page') && innerWidth >= innerHeight;
   const transparent = (el) => el && el.tagName !== 'svg'
     && (getComputedStyle(el).opacity === '0' || transparent(el.parentElement));
+  const zero = (el) => { const box = el.getBoundingClientRect(); return !box.width || !box.height; };
   const textSize = (el) => {
+    if (zero(el.closest('.nx-stage')) || zero(el.closest('svg'))) return 0;
     const shown = el.textContent.trim() && getComputedStyle(el).visibility === 'visible' && !transparent(el);
     const matrix = shown ? el.getScreenCTM() : null;
     return matrix ? parseFloat(getComputedStyle(el).fontSize) * Math.hypot(matrix.a, matrix.b) : Infinity;
@@ -36,6 +38,7 @@ MEASURE_JS = """() => {
       const stage = [figure.querySelector('.nx-stage'), ...figure.querySelectorAll('.nx-stage svg')];
       cases.push({ mode, index, stage: Math.max(...stage.map(past)), caption: past(figure.querySelector('figcaption')),
                    sideways: Math.max(0, page.scrollWidth - page.clientWidth), pageTop,
+                   collapsed: [...new Set(stage.filter(zero).map((el) => el.tagName === 'svg' ? 'an svg' : 'the stage'))],
                    text: Math.min(...[...figure.querySelectorAll('.nx-stage svg text')].map(textSize)) });
     });
   }
@@ -107,6 +110,7 @@ def inspect_layout(path: Path, css: str = "") -> tuple[list[str], list[str]]:
                         rule = "fit from the page top" if case["pageTop"] else "fit from the figure top"
                         problems = [f"{part} extends {round(case[part] + 0.49)}px past the window ({rule})"
                                     for part in ("stage", "caption") if case[part] > 0.5]
+                        problems += [f"{part} renders with zero width or height" for part in case["collapsed"]]
                         if case["sideways"] > 0.5:
                             problems.append(f"page scrolls sideways by {round(case['sideways'] + 0.49)}px")
                         if problems:
