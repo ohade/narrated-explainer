@@ -730,23 +730,23 @@
     // Fit: the stage keeps its aspect ratio and narrows until everything above and below it fits the
     // window height. A standalone page in a landscape window fits from the page top, so the first
     // view shows title through caption; otherwise it fits with the figure's top at the window's top.
-    // It is measured at its natural size with the transcript closed, so the fit never feeds on itself
-    // and opening the transcript does not shrink the stage. It never narrows below MIN_STAGE px.
+    // It is measured without changing the layout, so a reader's scroll position never moves: the
+    // space below the stage runs from the caption, so the transcript between them never counts and
+    // opening it does not shrink the stage. It never narrows below MIN_STAGE px or its natural width.
     const standalone = Boolean(doc.body && doc.body.classList.contains('nx-page'));
     function fit() {
-      if (!root.innerHeight || typeof stage.getBoundingClientRect !== 'function') return;
-      const open = !transcript.hidden;
-      stage.style.maxWidth = '';
-      transcript.hidden = true;
+      if (!root.innerHeight || typeof stage.getBoundingClientRect !== 'function' || typeof root.getComputedStyle !== 'function') return;
       const box = stage.getBoundingClientRect();
       const outer = figure.getBoundingClientRect();
-      transcript.hidden = !open;
       if (!box.width || !box.height) return;
+      const px = (el, property) => parseFloat(root.getComputedStyle(el)[property]) || 0;
+      const natural = figure.clientWidth - px(figure, 'paddingLeft') - px(figure, 'paddingRight');
+      const gap = Math.max(px(stage, 'marginBottom'), px(captionEl, 'marginTop'));
+      const below = outer.bottom - captionEl.getBoundingClientRect().top + gap;
       const fromPageTop = standalone && root.innerWidth >= root.innerHeight;
       const above = fromPageTop ? box.top + (root.scrollY || 0) : box.top - outer.top;
-      const free = root.innerHeight - above - (outer.bottom - box.bottom);
-      const fitted = Math.floor(free * box.width / box.height);
-      stage.style.maxWidth = Math.max(Math.min(MIN_STAGE, box.width), fitted) + 'px';
+      const fitted = Math.floor((root.innerHeight - above - below) * box.width / box.height);
+      stage.style.maxWidth = Math.max(Math.min(MIN_STAGE, natural), fitted) + 'px';
     }
     if (typeof root.addEventListener === 'function') root.addEventListener('resize', fit);
 
