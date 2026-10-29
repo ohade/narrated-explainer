@@ -21,6 +21,7 @@
   };
   const THEMES = ['auto', 'light', 'dark'];
   const THEME_KEY = 'narrated-explainer-theme';
+  const MIN_STAGE = 120; // fit(): the stage never narrows below this, or the full width when smaller
 
   const finite = (v, fallback) => (typeof v === 'number' && isFinite(v) ? v : fallback);
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -729,16 +730,23 @@
     // Fit: the stage keeps its aspect ratio and narrows until everything above and below it fits the
     // window height. A standalone page in a landscape window fits from the page top, so the first
     // view shows title through caption; otherwise it fits with the figure's top at the window's top.
+    // It is measured at its natural size with the transcript closed, so the fit never feeds on itself
+    // and opening the transcript does not shrink the stage. It never narrows below MIN_STAGE px.
     const standalone = Boolean(doc.body && doc.body.classList.contains('nx-page'));
     function fit() {
       if (!root.innerHeight || typeof stage.getBoundingClientRect !== 'function') return;
+      const open = !transcript.hidden;
+      stage.style.maxWidth = '';
+      transcript.hidden = true;
       const box = stage.getBoundingClientRect();
-      if (!box.width || !box.height) return;
       const outer = figure.getBoundingClientRect();
+      transcript.hidden = !open;
+      if (!box.width || !box.height) return;
       const fromPageTop = standalone && root.innerWidth >= root.innerHeight;
       const above = fromPageTop ? box.top + (root.scrollY || 0) : box.top - outer.top;
       const free = root.innerHeight - above - (outer.bottom - box.bottom);
-      stage.style.maxWidth = Math.max(0, Math.floor(free * box.width / box.height)) + 'px';
+      const fitted = Math.floor(free * box.width / box.height);
+      stage.style.maxWidth = Math.max(Math.min(MIN_STAGE, box.width), fitted) + 'px';
     }
     if (typeof root.addEventListener === 'function') root.addEventListener('resize', fit);
 
