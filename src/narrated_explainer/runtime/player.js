@@ -730,9 +730,12 @@
     // Fit: the stage keeps its aspect ratio and narrows until everything above and below it fits the
     // window height. A standalone page in a landscape window fits from the page top, so the first
     // view shows title through caption; otherwise it fits with the figure's top at the window's top.
-    // It is measured without changing the layout, so a reader's scroll position never moves: the
-    // space below the stage runs from the caption, so the transcript between them never counts and
-    // opening it does not shrink the stage. It never narrows below MIN_STAGE px or its natural width.
+    // Fullscreen uses the same rule inside the figure. It is measured without changing the layout,
+    // so a reader's scroll position never moves, and from the window and the content only, never from
+    // the stage's fitted size: the space below the stage is the caption with its margins and the
+    // figure's bottom padding and border, so the transcript never counts and opening it does not
+    // shrink the stage; the height per pixel of width is each svg's own aspect ratio, plus any fixed
+    // space between them. It never narrows below MIN_STAGE px or its natural width.
     const standalone = Boolean(doc.body && doc.body.classList.contains('nx-page'));
     function fit() {
       if (!root.innerHeight || typeof stage.getBoundingClientRect !== 'function' || typeof root.getComputedStyle !== 'function') return;
@@ -742,13 +745,20 @@
       const px = (el, property) => parseFloat(root.getComputedStyle(el)[property]) || 0;
       const natural = figure.clientWidth - px(figure, 'paddingLeft') - px(figure, 'paddingRight');
       const gap = Math.max(px(stage, 'marginBottom'), px(captionEl, 'marginTop'));
-      const below = outer.bottom - captionEl.getBoundingClientRect().top + gap;
-      const fromPageTop = standalone && root.innerWidth >= root.innerHeight;
-      const above = fromPageTop ? box.top + (root.scrollY || 0) : box.top - outer.top;
-      const fitted = Math.floor((root.innerHeight - above - below) * box.width / box.height);
+      const below = gap + captionEl.getBoundingClientRect().height + px(captionEl, 'marginBottom') +
+        px(figure, 'paddingBottom') + px(figure, 'borderBottomWidth');
+      const svgs = Array.from(stage.querySelectorAll('svg'), (svg) => svg.getBoundingClientRect()).filter((r) => r.width);
+      const perWidth = svgs.reduce((sum, r) => sum + r.height / r.width, 0);
+      if (!perWidth) return;
+      const fixed = box.height - svgs.reduce((sum, r) => sum + r.height, 0);
+      const full = doc.fullscreenElement === figure;
+      const fromPageTop = !full && standalone && root.innerWidth >= root.innerHeight;
+      const above = fromPageTop ? box.top + (root.scrollY || 0) : box.top - outer.top + figure.scrollTop;
+      const fitted = Math.floor((root.innerHeight - above - below - fixed) / perWidth);
       stage.style.maxWidth = Math.max(Math.min(MIN_STAGE, natural), fitted) + 'px';
     }
     if (typeof root.addEventListener === 'function') root.addEventListener('resize', fit);
+    if (typeof doc.addEventListener === 'function') doc.addEventListener('fullscreenchange', fit);
 
     function toggleFullscreen() {
       if (doc.fullscreenElement === figure) doc.exitFullscreen();
