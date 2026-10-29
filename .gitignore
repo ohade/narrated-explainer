@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+dist/
+narration/
+
+# The demo ships its recorded narration so it builds without the models.
+!examples/*/narration/

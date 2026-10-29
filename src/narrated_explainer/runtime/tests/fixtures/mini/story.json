@@ -1,0 +1,19 @@
+{
+  "id": "mini",
+  "title": "A ball on a track",
+  "description": "A tiny story that exercises the player: two modes, two intro steps and four moments.",
+  "lang": "en",
+  "modes": [ { "id": "smooth", "label": "Smooth" }, { "id": "bumpy", "label": "Bumpy" } ],
+  "timing": { "end": 100, "unit": "ms", "realMsPerUnit": 20, "holdMs": 1000, "speeds": [0.5, 1] },
+  "atRest": { "mode": "smooth", "t": 100, "caption": "Press Play to watch the ball roll." },
+  "intro": [
+    { "id": "intro-ball", "caption": "This is the ball.", "sfx": "pop", "holdMs": 2000 },
+    { "id": "intro-track", "caption": "And this is its track.", "sfx": "whoosh" }
+  ],
+  "moments": [
+    { "id": "start", "t": 0, "caption": "The ball starts to roll.", "sfx": "click" },
+    { "id": "bump", "t": 70, "modes": ["bumpy"], "caption": "It hits a bump.", "sfx": "thud" },
+    { "id": "half", "t": 50, "caption": "Halfway there.", "sfx": "tick" },
+    { "id": "finish", "t": 90, "caption": "The ball reaches the flag.", "sfx": "success" }
+  ]
+}

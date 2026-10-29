@@ -1,0 +1,9 @@
+{
+  "id": "two-caption",
+  "title": "A local narration check",
+  "lang": "en",
+  "timing": {"end": 10, "unit": "ms", "realMsPerUnit": 30, "holdMs": 1600, "speeds": [0.5, 1]},
+  "atRest": {"mode": "main", "t": 10, "caption": "Press Play to follow the request."},
+  "intro": [{"id": "start", "caption": "The request starts here."}],
+  "moments": [{"id": "arrive", "t": 0, "caption": "The request reaches the server."}]
+}

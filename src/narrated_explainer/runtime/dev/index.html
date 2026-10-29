@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Narrated Explainer player: dev page</title>
+<link rel="stylesheet" href="../player.css">
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: Canvas; color: CanvasText; }
+  .dev-header { position: sticky; top: 0; z-index: 5; height: 56px; display: flex; align-items: center;
+    padding: 0 24px; background: Canvas; border-bottom: 1px solid GrayText; font-size: 18px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px 24px 64px; }
+  main figure.nx { --nx-sticky-top: 56px; }
+  .dev-tools { margin-top: 32px; font-size: 16px; }
+  .dev-tools button, .dev-tools select { font: inherit; min-height: 44px; }
+  .dev-tools input[type=range] { width: 100%; }
+  .dev-tools pre { overflow: auto; max-height: 20em; font-size: 16px; }
+  .dev-filler { height: 60vh; }
+</style>
+</head>
+<body>
+<header class="dev-header">Player dev page &middot; the controls stick under this header</header>
+<main>
+  <h1>A ball on a track</h1>
+  <p>Fixture story for the player. Add <code>?voice=none</code> to the address to run without narration.
+     The voice here is a synthetic test tone, one beep per caption word.</p>
+  <figure id="demo"></figure>
+
+  <section class="dev-tools" aria-label="Tool API">
+    <h2>Tool API</h2>
+    <label>Mode <select id="dev-mode"></select></label>
+    <button type="button" id="dev-plan">plan()</button>
+    <button type="button" id="dev-soundtrack">soundtrack()</button>
+    <p><label>renderAt(ms): <output id="dev-ms">0</output><br>
+      <input type="range" id="dev-scrub" min="0" max="1000" value="0" step="10"></label></p>
+    <audio id="dev-audio" controls hidden></audio>
+    <pre id="dev-out"></pre>
+  </section>
+  <div class="dev-filler"></div>
+</main>
+
+<script src="../sfx.js"></script>
+<script src="../player.js"></script>
+<script src="../tests/fixtures/mini/scene.js"></script>
+<script type="application/json" id="nx-story">
+{
+  "id": "mini",
+  "title": "A ball on a track",
+  "description": "A tiny story that exercises the player: two modes, two intro steps and four moments.",
+  "lang": "en",
+  "modes": [ { "id": "smooth", "label": "Smooth" }, { "id": "bumpy", "label": "Bumpy" } ],
+  "timing": { "end": 100, "unit": "ms", "realMsPerUnit": 20, "holdMs": 1000, "speeds": [0.5, 1] },
+  "atRest": { "mode": "smooth", "t": 100, "caption": "Press Play to watch the ball roll." },
+  "intro": [
+    { "id": "intro-ball", "caption": "This is the ball.", "sfx": "pop", "holdMs": 2000 },
+    { "id": "intro-track", "caption": "And this is its track.", "sfx": "whoosh" }
+  ],
+  "moments": [
+    { "id": "start", "t": 0, "caption": "The ball starts to roll.", "sfx": "click" },
+    { "id": "bump", "t": 70, "modes": ["bumpy"], "caption": "It hits a bump.", "sfx": "thud" },
+    { "id": "half", "t": 50, "caption": "Halfway there.", "sfx": "tick" },
+    { "id": "finish", "t": 90, "caption": "The ball reaches the flag.", "sfx": "success" }
+  ]
+}
+</script>
+<script>
+(function () {
+  'use strict';
+  const story = JSON.parse(document.getElementById('nx-story').textContent);
+
+  // A synthetic narration: one short beep per caption word, as a WAV data URI, with word timings.
+  function testClip(caption, pitch) {
+    const words = caption.split(/\s+/).filter(Boolean);
+    const rate = 16000;
+    const per = 0.34;
+    const beep = 0.22;
+    const samples = new Int16Array(Math.ceil(words.length * per * rate));
+    words.forEach((w, i) => {
+      const from = Math.floor(i * per * rate);
+      for (let n = 0; n < beep * rate; n += 1) {
+        const fade = Math.min(1, n / 200, (beep * rate - n) / 200);
+        samples[from + n] = Math.round(6000 * fade * Math.sin(2 * Math.PI * pitch * n / rate));
+      }
+    });
+    const bytes = new Uint8Array(44 + samples.length * 2);
+    const v = new DataView(bytes.buffer);
+    const put = (o, s) => { for (let i = 0; i < s.length; i += 1) bytes[o + i] = s.charCodeAt(i); };
+    put(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); put(8, 'WAVEfmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true);
+    v.setUint16(34, 16, true); put(36, 'data'); v.setUint32(40, samples.length * 2, true);
+    samples.forEach((s, i) => v.setInt16(44 + i * 2, s, true));
+    let bin = '';
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return {
+      src: 'data:audio/wav;base64,' + btoa(bin),
+      duration: words.length * per,
+      words: words.map((w, i) => [i * per, i * per + beep]),
+    };
+  }
+
+  let narration = null;
+  if (!/[?&]voice=none\b/.test(location.search)) {
+    const clips = {};
+    (story.intro || []).concat(story.moments).forEach((p, i) => { clips[p.id] = testClip(p.caption, 330 + 40 * (i % 5)); });
+    narration = { label: 'Test tones', clips };
+  }
+
+  const player = NarratedExplainer.mount(document.getElementById('demo'), { story, narration });
+
+  const modeSelect = document.getElementById('dev-mode');
+  (story.modes || [{ id: 'main' }]).forEach((m) => modeSelect.add(new Option(m.label || m.id, m.id)));
+  const out = document.getElementById('dev-out');
+  const scrub = document.getElementById('dev-scrub');
+  const msOut = document.getElementById('dev-ms');
+  const syncScrub = () => { scrub.max = String(player.plan(modeSelect.value).duration); };
+  syncScrub();
+  modeSelect.addEventListener('change', syncScrub);
+  document.getElementById('dev-plan').addEventListener('click', () => {
+    out.textContent = JSON.stringify(player.plan(modeSelect.value), null, 1);
+  });
+  scrub.addEventListener('input', () => {
+    msOut.textContent = scrub.value;
+    player.renderAt(modeSelect.value, Number(scrub.value));
+  });
+  document.getElementById('dev-soundtrack').addEventListener('click', () => {
+    out.textContent = 'Rendering...';
+    player.soundtrack(modeSelect.value).then((r) => {
+      const audio = document.getElementById('dev-audio');
+      audio.src = 'data:audio/wav;base64,' + r.wavBase64;
+      audio.hidden = false;
+      out.textContent = 'soundtrack: ' + r.sampleRate + ' Hz, ' + r.wavBase64.length + ' base64 chars';
+    }, (err) => { out.textContent = 'soundtrack failed: ' + err.message; });
+  });
+})();
+</script>
+</body>
+</html>

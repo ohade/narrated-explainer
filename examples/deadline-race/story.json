@@ -1,0 +1,30 @@
+{
+  "id": "deadline-race",
+  "title": "Racing the deadline",
+  "description": "An app gives a request 300 ms. The request first waits in a busy gateway, then fans out to two services. Compare what happens when the gateway ignores the deadline (Before) with what happens when it passes the remaining time on (After).",
+  "lang": "en",
+  "voice": { "engine": "kokoro", "voice": "am_michael", "speed": 1.0 },
+  "pronounce": {},
+  "modes": [
+    { "id": "before", "label": "Before" },
+    { "id": "after", "label": "After" }
+  ],
+  "timing": { "end": 320, "unit": "ms", "realMsPerUnit": 30, "holdMs": 1600, "speeds": [0.5, 1] },
+  "atRest": { "mode": "before", "t": 320, "caption": "Press Play to watch the request from the start." },
+  "intro": [
+    { "id": "intro-budget", "caption": "The App sets its stopwatch. First 200 ms: the time the Gateway may spend on its own work.", "sfx": "wind", "holdMs": 2000 },
+    { "id": "intro-buffer", "caption": "Then 100 ms more: a safety buffer on top.", "sfx": "wind", "holdMs": 2000 },
+    { "id": "intro-start", "caption": "300 ms in total. The App presses start and sends the request.", "sfx": "click", "holdMs": 2000 }
+  ],
+  "moments": [
+    { "id": "send", "t": 0, "caption": "The request leaves the App. Its deadline is 300 ms away, and the countdown starts.", "sfx": "whoosh" },
+    { "id": "queue", "t": 100, "caption": "The Gateway is busy, so the request waits in its queue. The countdown keeps running.", "sfx": "tick" },
+    { "id": "fan-out", "t": 200, "caption": "At 200 ms the Gateway asks Services A and B. Only 100 ms are left.", "sfx": "whoosh" },
+    { "id": "before-budget", "t": 201, "modes": ["before"], "caption": "Before: each service gets the full 200 ms timeout, so B could run until 400 ms, long after the deadline." },
+    { "id": "after-budget", "t": 201, "modes": ["after"], "caption": "After: the Gateway passes the deadline on. 100 ms are left, minus a 20 ms reserve, so each service gets 80 ms." },
+    { "id": "a-answers", "t": 220, "caption": "Service A answers in 20 ms. Its reply waits in the Gateway, which sends one combined answer.", "sfx": "pop" },
+    { "id": "b-times-out", "t": 280, "modes": ["after"], "caption": "Service B's 80 ms run out. The Gateway marks B as timed out and builds the answer.", "sfx": "fail" },
+    { "id": "answer-arrives", "t": 296, "modes": ["after"], "caption": "The answer with A's reply reaches the App before 300 ms. A's work is used.", "sfx": "success" },
+    { "id": "deadline-passes", "t": 300, "modes": ["before"], "caption": "300 ms: the deadline passes. The App stops waiting, cancels the call, and A's reply is lost.", "sfx": "alarm" }
+  ]
+}

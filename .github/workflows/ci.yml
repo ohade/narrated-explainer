@@ -1,0 +1,30 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test "src/narrated_explainer/runtime/tests/*.test.mjs" "examples/*/*.test.mjs"
+      - run: uv run --frozen playwright install --with-deps chromium
+      - run: uv run pytest -q -m "not slow"
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv run --frozen playwright install --with-deps chromium
+      - run: uv run --frozen explainer new "$RUNNER_TEMP/starter"
+      - run: uv run --frozen explainer snapshots "$RUNNER_TEMP/starter" --no-voice
+      - run: uv run --frozen explainer video "$RUNNER_TEMP/starter" --format gif --no-voice

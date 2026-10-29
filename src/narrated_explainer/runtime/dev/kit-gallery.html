@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drawing kit gallery</title>
+<!-- Colours come from the player's tone classes; this page adds layout only. -->
+<link rel="stylesheet" href="../player.css">
+<style>
+  body { margin: 0; padding: 24px; font: 18px/1.4 system-ui, sans-serif; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
+  .gallery figure { margin: 0; padding: 12px; border: 1px solid; border-radius: 10px; border-color: var(--nx-hairline, currentColor); }
+  .gallery figcaption { font-size: 18px; margin-top: 8px; }
+  .gallery code { font-size: 16px; }
+  .bar { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; }
+  .bar button { font: inherit; min-height: 44px; padding: 8px 16px; }
+</style>
+</head>
+<body>
+<div class="nx">
+  <h1>Drawing kit gallery</h1>
+  <div class="bar">
+    <button type="button" id="toggle">Pause</button>
+    <span>Every panel loops its progress value p from 0 to 1 every three seconds.</span>
+  </div>
+  <div class="gallery" id="gallery"></div>
+</div>
+<script src="../kit.js"></script>
+<script>
+(function () {
+  'use strict';
+  const kit = NarratedExplainer.kit;
+  const gallery = document.getElementById('gallery');
+  const panels = [];
+
+  // One panel: build once, then draw(p) every frame with p looping 0..1.
+  function panel(name, note, build) {
+    const fig = document.createElement('figure');
+    const cap = document.createElement('figcaption');
+    cap.innerHTML = '<code>' + name + '</code> ' + note;
+    gallery.appendChild(fig);
+    const svg = kit.svg(fig, '0 0 400 260', name);
+    fig.appendChild(cap);
+    panels.push(build(svg));
+  }
+
+  panel('box', 'with a status that changes tone.', (svg) => {
+    const b = kit.box(svg, { x: 60, y: 40, w: 280, h: 180, label: 'Workshop', sub: 'Two people inside' });
+    return (p) => {
+      const busy = p < 0.5;
+      b.setTone(busy ? 'warn' : 'ok');
+      b.setStatus(busy ? 'Busy' : 'Ready', busy ? 'warn' : 'ok');
+    };
+  });
+
+  panel('arrow', 'draws on from its start; the lower one is dashed.', (svg) => {
+    const a = kit.arrow(svg, { from: [40, 90], to: [360, 90], label: 'there', tone: 'info' });
+    const b = kit.arrow(svg, { from: [40, 190], to: [360, 160], label: 'back', tone: 'ok', dashed: true });
+    return (p) => { a.draw(kit.ramp(p, 0, 0.6)); b.draw(kit.ramp(p, 0.3, 0.9)); };
+  });
+
+  panel('token', 'moves along a path with kit.along.', (svg) => {
+    const path = [[50, 200], [200, 60], [350, 200]];
+    kit.el(svg, 'path', { d: 'M50 200 L200 60 L350 200', fill: 'none', class: 'nx-stroke-hairline', 'stroke-width': 3 });
+    const t = kit.token(svg, { label: 'letter', tone: 'info' });
+    return (p) => {
+      t.moveTo(kit.along(path, kit.ease.inOut(p)));
+      t.setTone(p < 0.5 ? 'info' : 'ok');
+    };
+  });
+
+  panel('bubble', 'pops about its tail tip and never grows past full size.', (svg) => {
+    kit.el(svg, 'circle', { cx: 200, cy: 210, r: 18, class: 'nx-fill-info-fg' });
+    const b = kit.bubble(svg, { x: 70, y: 70, w: 260, text: 'Over here, please!', tail: [200, 188] });
+    return (p) => b.pop(kit.ramp(p, 0.1, 0.4));
+  });
+
+  panel('queue', 'slots fill left to right.', (svg) => {
+    const q = kit.queue(svg, { x: 40, y: 100, slots: 4, slotW: 74, gap: 8, title: 'Waiting line' });
+    return (p) => {
+      const n = Math.floor(p * 5);
+      q.set([0, 1, 2, 3].map((i) => (i < n ? { label: String(i + 1), tone: i === n - 1 ? 'info' : 'ink-2' } : null)));
+    };
+  });
+
+  panel('readout', 'a large number or status.', (svg) => {
+    const r = kit.readout(svg, { x: 200, y: 140, size: 48, anchor: 'middle' });
+    return (p) => {
+      const left = Math.round(60 * (1 - p));
+      r.set(left + ' s left', left === 0 ? 'stop' : left < 20 ? 'warn' : 'ink');
+    };
+  });
+
+  panel('stopwatch', 'winds, is pressed, then runs down and flashes at zero.', (svg) => {
+    const sw = kit.stopwatch(svg, {
+      cx: 90, cy: 150, max: 60, unit: 's', operator: true,
+      segments: [{ to: 40, tone: 'info', label: 'cooking' }, { to: 60, tone: 'warn', label: 'resting' }],
+    });
+    return (p) => {
+      if (p < 0.3) {
+        const m = p / 0.3;
+        sw.wind(m);
+        sw.set({ value: 60 * kit.ease.inOut(m), total: m >= 0.5 ? 60 : 0 });
+      } else if (p < 0.5) {
+        sw.press((p - 0.3) / 0.2);
+        sw.set({ value: 60, total: 60 });
+      } else {
+        const value = 60 * (1 - kit.ramp(p, 0.5, 0.85));
+        sw.press(1);
+        sw.set({ value, total: 60, rim: value === 0 ? 'stop' : 'ink-2', flash: value === 0 ? 1 - kit.ramp(p, 0.85, 1) : 0 });
+      }
+    };
+  });
+
+  panel('figure', 'reaches for a point, then waves.', (svg) => {
+    const f = kit.figure(svg, { x: 220, y: 230, scale: 1.4 });
+    kit.el(svg, 'circle', { cx: 110, cy: 80, r: 10, class: 'nx-fill-warn-fg' });
+    return (p) => (p < 0.5 ? f.reach([kit.lerp(170, 110, kit.ease.inOut(p * 2)), kit.lerp(150, 80, kit.ease.inOut(p * 2))]) : f.wave((p - 0.5) * 2));
+  });
+
+  panel('axis', 'a time axis with a moving marker.', (svg) => {
+    const ax = kit.axis(svg, { x0: 40, x1: 360, y: 150, t0: 0, t1: 400, ticks: 4, unit: 'ms' });
+    const mark = kit.el(svg, 'circle', { cy: 150, r: 9, class: 'nx-fill-stop-fg' });
+    return (p) => mark.setAttribute('cx', ax.x(400 * p));
+  });
+
+  panel('meter', 'fills and changes tone.', (svg) => {
+    const m = kit.meter(svg, { x: 40, y: 110, w: 320, h: 28 });
+    return (p) => { m.set(p); m.setTone(p < 0.6 ? 'ok' : p < 0.85 ? 'warn' : 'stop'); };
+  });
+
+  panel('stamp', 'a tick and a cross pop in with a small overshoot.', (svg) => {
+    const ok = kit.stamp(svg, { x: 130, y: 130, kind: 'ok', size: 72 });
+    const no = kit.stamp(svg, { x: 270, y: 130, kind: 'stop', size: 72 });
+    return (p) => { ok.pop(kit.ramp(p, 0.1, 0.4)); no.pop(kit.ramp(p, 0.4, 0.7)); };
+  });
+
+  panel('text', 'with a halo, and on strong and soft fills.', (svg) => {
+    kit.el(svg, 'rect', { x: 30, y: 30, width: 160, height: 60, rx: 8, class: 'nx-fill-info-fg' });
+    kit.text(svg, 110, 68, 'on info-fg', { anchor: 'middle', on: 'info-fg' });
+    kit.el(svg, 'rect', { x: 210, y: 30, width: 160, height: 60, rx: 8, class: 'nx-fill-ok-bg' });
+    kit.text(svg, 290, 68, 'on ok-bg', { anchor: 'middle', on: 'ok-bg' });
+    kit.el(svg, 'line', { x1: 30, y1: 170, x2: 370, y2: 170, class: 'nx-stroke-stop', 'stroke-width': 6 });
+    kit.text(svg, 200, 177, 'halo over a line', { anchor: 'middle', halo: true, size: 22, weight: 700 });
+    return () => {};
+  });
+
+  // The animation loop lives here, in the page; the kit itself never keeps time.
+  const PERIOD = 3000;
+  let running = true;
+  let offset = 0;
+  let pausedAt = 0;
+  function frame(now) {
+    const p = ((now - offset) % PERIOD) / PERIOD;
+    panels.forEach((draw) => draw(p));
+    if (running) requestAnimationFrame(frame);
+    else pausedAt = now;
+  }
+  document.getElementById('toggle').addEventListener('click', (event) => {
+    running = !running;
+    event.target.textContent = running ? 'Pause' : 'Play';
+    if (running) {
+      offset += performance.now() - pausedAt;
+      requestAnimationFrame(frame);
+    }
+  });
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

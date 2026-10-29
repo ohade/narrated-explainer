@@ -1,0 +1,11 @@
+{
+  "name": "narrated-explainer",
+  "owner": { "name": "ohade" },
+  "plugins": [
+    {
+      "name": "narrated-explainer",
+      "source": "./",
+      "description": "Turn any material into a self-contained, narrated, animated HTML explainer."
+    }
+  ]
+}

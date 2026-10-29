@@ -1,0 +1,190 @@
+/* Narrated Explainer player styles. Every selector starts with .nx; colours come only from the
+   tone custom properties below. Hex literals appear only in the two palette definitions. */
+
+/* Light palette */
+.nx {
+  --nx-ink: #1d1f23;
+  --nx-ink-2: #4a4f57;
+  --nx-page: #ffffff;
+  --nx-sunken: #f1f2f4;
+  --nx-hairline: #d6d9de;
+  --nx-edge: #7c828c;
+  --nx-info-fg: #2f4c9c;
+  --nx-info-bg: #e4eafa;
+  --nx-ok-fg: #1c6b45;
+  --nx-ok-bg: #e0f2e8;
+  --nx-warn-fg: #8a5300;
+  --nx-warn-bg: #fcefd6;
+  --nx-stop-fg: #a3282a;
+  --nx-stop-bg: #fbe5e5;
+}
+
+/* Dark palette */
+@media (prefers-color-scheme: dark) {
+  .nx {
+    --nx-ink: #eceef1;
+    --nx-ink-2: #b6bbc3;
+    --nx-page: #15171a;
+    --nx-sunken: #23262b;
+    --nx-hairline: #373b42;
+    --nx-edge: #7a808a;
+    --nx-info-fg: #a3b9f6;
+    --nx-info-bg: #1f2a48;
+    --nx-ok-fg: #82d4a8;
+    --nx-ok-bg: #173427;
+    --nx-warn-fg: #f1c56f;
+    --nx-warn-bg: #3a2b10;
+    --nx-stop-fg: #f39d9d;
+    --nx-stop-bg: #3e1c1d;
+  }
+}
+
+/* Derived tones: the neutral tones as fg/bg pairs, resolved against whichever palette applies. */
+.nx {
+  --nx-ink-fg: var(--nx-ink);
+  --nx-ink-bg: var(--nx-sunken);
+  --nx-ink-2-fg: var(--nx-ink-2);
+  --nx-ink-2-bg: var(--nx-sunken);
+  --nx-sunken-fg: var(--nx-edge);
+  --nx-sunken-bg: var(--nx-sunken);
+}
+
+.nx {
+  display: block;
+  margin: 0;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  color: var(--nx-ink);
+  background: var(--nx-page);
+  font-size: 18px;
+  line-height: 1.45;
+}
+.nx *, .nx *::before, .nx *::after { box-sizing: border-box; }
+.nx:focus { outline: none; }
+.nx:fullscreen { overflow-y: auto; padding: 16px 24px; }
+.nx::backdrop { background: var(--nx-page); }
+
+/* Sticky controls; a page with its own sticky header sets --nx-sticky-top. */
+.nx .nx-bar {
+  position: sticky;
+  top: var(--nx-sticky-top, 0px);
+  z-index: 3;
+  padding: 8px 0;
+  background: var(--nx-page);
+  border-bottom: 1px solid var(--nx-hairline);
+}
+.nx .nx-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.nx .nx-group { display: inline-flex; flex-wrap: wrap; }
+
+.nx button {
+  font: inherit;
+  font-size: 18px;
+  line-height: 1.2;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 14px;
+  color: var(--nx-ink);
+  background: var(--nx-sunken);
+  border: 1px solid var(--nx-edge);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.nx button[hidden], .nx .nx-voice-name[hidden] { display: none; }
+.nx button[aria-pressed="true"] {
+  color: var(--nx-info-fg);
+  background: var(--nx-info-bg);
+  border-color: var(--nx-info-fg);
+  font-weight: 700;
+}
+.nx button:focus-visible { outline: 3px solid var(--nx-info-fg); outline-offset: 2px; position: relative; z-index: 1; }
+.nx .nx-group button { border-radius: 0; }
+.nx .nx-group button:first-child { border-radius: 6px 0 0 6px; }
+.nx .nx-group button:last-child { border-radius: 0 6px 6px 0; }
+.nx .nx-group button + button { border-left-width: 0; }
+.nx .nx-voice-name { font-size: 16px; color: var(--nx-ink-2); }
+
+/* Progress: one clickable marker per position. */
+.nx .nx-progress { display: flex; gap: 3px; margin-top: 8px; min-width: 0; }
+.nx .nx-progress .nx-marker {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.nx .nx-progress .nx-marker::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 4px;
+  background: var(--nx-hairline);
+}
+.nx .nx-progress .nx-marker-intro::before { background: var(--nx-sunken); border: 1px solid var(--nx-hairline); }
+.nx .nx-progress .nx-marker.nx-passed::before { background: var(--nx-info-fg); border-color: var(--nx-info-fg); }
+.nx .nx-progress .nx-marker[aria-current="step"]::before { height: 16px; margin-top: -8px; }
+
+.nx .nx-stage { margin: 12px 0 0; min-width: 0; }
+.nx .nx-stage svg { display: block; width: 100%; max-width: 100%; height: auto; }
+
+.nx .nx-caption { margin: 12px 0 0; min-height: 3em; font-size: 22px; line-height: 1.45; color: var(--nx-ink); }
+.nx .nx-word { border-radius: 4px; transition: background-color 120ms ease; }
+.nx .nx-word-on { color: var(--nx-info-fg); background: var(--nx-info-bg); }
+
+.nx .nx-transcript { margin: 12px 0 0; }
+.nx .nx-transcript[hidden] { display: none; }
+.nx .nx-transcript ol { margin: 0; padding: 0 0 0 1.6em; }
+.nx .nx-transcript li { margin: 4px 0; }
+.nx .nx-transcript .nx-transcript-item {
+  width: 100%;
+  text-align: start;
+  background: transparent;
+  border-color: transparent;
+  font-weight: 400;
+}
+.nx .nx-transcript .nx-transcript-item[aria-current="step"] { background: var(--nx-info-bg); color: var(--nx-info-fg); }
+
+@media (max-width: 600px) {
+  .nx button { padding: 8px 10px; }
+  .nx .nx-caption { font-size: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nx .nx-word { transition: none; }
+}
+
+/* SVG utility classes for scenes and the kit. */
+.nx .nx-fill-ink-fg { fill: var(--nx-ink-fg); }
+.nx .nx-fill-ink-bg { fill: var(--nx-ink-bg); }
+.nx .nx-stroke-ink { stroke: var(--nx-ink-fg); }
+.nx .nx-fill-ink-2-fg { fill: var(--nx-ink-2-fg); }
+.nx .nx-fill-ink-2-bg { fill: var(--nx-ink-2-bg); }
+.nx .nx-stroke-ink-2 { stroke: var(--nx-ink-2-fg); }
+.nx .nx-fill-info-fg { fill: var(--nx-info-fg); }
+.nx .nx-fill-info-bg { fill: var(--nx-info-bg); }
+.nx .nx-stroke-info { stroke: var(--nx-info-fg); }
+.nx .nx-fill-ok-fg { fill: var(--nx-ok-fg); }
+.nx .nx-fill-ok-bg { fill: var(--nx-ok-bg); }
+.nx .nx-stroke-ok { stroke: var(--nx-ok-fg); }
+.nx .nx-fill-warn-fg { fill: var(--nx-warn-fg); }
+.nx .nx-fill-warn-bg { fill: var(--nx-warn-bg); }
+.nx .nx-stroke-warn { stroke: var(--nx-warn-fg); }
+.nx .nx-fill-stop-fg { fill: var(--nx-stop-fg); }
+.nx .nx-fill-stop-bg { fill: var(--nx-stop-bg); }
+.nx .nx-stroke-stop { stroke: var(--nx-stop-fg); }
+.nx .nx-fill-sunken-fg { fill: var(--nx-sunken-fg); }
+.nx .nx-fill-sunken-bg { fill: var(--nx-sunken-bg); }
+.nx .nx-stroke-sunken { stroke: var(--nx-sunken-fg); }
+.nx .nx-fill-page { fill: var(--nx-page); }
+.nx .nx-stroke-page { stroke: var(--nx-page); }
+.nx .nx-fill-edge { fill: var(--nx-edge); }
+.nx .nx-stroke-edge { stroke: var(--nx-edge); }
+.nx .nx-fill-hairline { fill: var(--nx-hairline); }
+.nx .nx-stroke-hairline { stroke: var(--nx-hairline); }
+.nx .nx-halo { paint-order: stroke; stroke: var(--nx-page); stroke-width: 6px; stroke-linejoin: round; }

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "narrated-explainer"
+version = "0.1.0"
+description = "Build offline narrated SVG explainers"
+license = "MIT"
+requires-python = ">=3.10,<3.14"
+# faster-whisper 1.2.1 uses av.open(metadata_errors=...), removed in PyAV 19.
+dependencies = ["kokoro-onnx==0.6.1", "faster-whisper==1.2.1", "av==16.0.1", "soundfile==0.13.1", "imageio-ffmpeg==0.6.0", "playwright==1.55.0"]
+
+[project.scripts]
+explainer = "narrated_explainer.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3,<9"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/narrated_explainer"]
+
+[tool.pytest.ini_options]
+markers = ["slow: real local model inference"]
+testpaths = ["tests"]

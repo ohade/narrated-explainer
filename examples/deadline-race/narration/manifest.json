@@ -1,0 +1,900 @@
+{
+  "engine": "kokoro",
+  "voice": "am_michael",
+  "speed": 1.0,
+  "label": "Michael (Kokoro)",
+  "settings": {
+    "encoder": "imageio-ffmpeg/libmp3lame mono 48kbps",
+    "recognizer": "faster-whisper base.en cpu int8"
+  },
+  "clips": {
+    "intro-budget": {
+      "file": "intro-budget-702a273ffed03af6.mp3",
+      "key": "702a273ffed03af6d642f46244b3a31f60b19cd16691b222fe488c8ce2860726",
+      "spoken": "The App sets its stopwatch. First 200 milliseconds: the time the Gateway may spend on its own work.",
+      "caption": "The App sets its stopwatch. First 200 ms: the time the Gateway may spend on its own work.",
+      "duration": 7.034625,
+      "score": 1.0,
+      "words": [
+        [
+          0.0,
+          0.14
+        ],
+        [
+          0.14,
+          0.34
+        ],
+        [
+          0.34,
+          0.66
+        ],
+        [
+          0.66,
+          0.88
+        ],
+        [
+          0.88,
+          1.46
+        ],
+        [
+          2.1,
+          2.36
+        ],
+        [
+          2.36,
+          2.92
+        ],
+        [
+          2.92,
+          3.34
+        ],
+        [
+          4.26,
+          4.36
+        ],
+        [
+          4.36,
+          4.62
+        ],
+        [
+          4.62,
+          4.78
+        ],
+        [
+          4.78,
+          5.0
+        ],
+        [
+          5.0,
+          5.44
+        ],
+        [
+          5.44,
+          5.7
+        ],
+        [
+          5.7,
+          6.0
+        ],
+        [
+          6.0,
+          6.12
+        ],
+        [
+          6.12,
+          6.28
+        ],
+        [
+          6.28,
+          6.58
+        ]
+      ]
+    },
+    "intro-buffer": {
+      "file": "intro-buffer-7ed444ecd516d897.mp3",
+      "key": "7ed444ecd516d897b218b51bd969d0290e814bc7da5b3eeef359925e3ab30335",
+      "spoken": "Then 100 milliseconds more: a safety buffer on top.",
+      "caption": "Then 100 ms more: a safety buffer on top.",
+      "duration": 4.373375,
+      "score": 0.8888888888888888,
+      "words": [
+        [
+          0.0,
+          0.2
+        ],
+        [
+          0.2,
+          0.86
+        ],
+        [
+          0.86,
+          1.14
+        ],
+        [
+          1.14,
+          1.84
+        ],
+        [
+          2.34,
+          2.46
+        ],
+        [
+          2.46,
+          2.72
+        ],
+        [
+          2.72,
+          3.24
+        ],
+        [
+          3.24,
+          3.54
+        ],
+        [
+          3.54,
+          3.86
+        ]
+      ]
+    },
+    "intro-start": {
+      "file": "intro-start-1d87c642156c3d75.mp3",
+      "key": "1d87c642156c3d757a826bdc1dc60d9907466271c729857b4196f518f26b8a06",
+      "spoken": "300 milliseconds in total. The App presses start and sends the request.",
+      "caption": "300 ms in total. The App presses start and sends the request.",
+      "duration": 5.333375,
+      "score": 1.0,
+      "words": [
+        [
+          0.0,
+          0.6
+        ],
+        [
+          0.6,
+          0.92
+        ],
+        [
+          0.92,
+          1.52
+        ],
+        [
+          1.52,
+          1.76
+        ],
+        [
+          2.58,
+          2.6
+        ],
+        [
+          2.6,
+          2.8
+        ],
+        [
+          2.8,
+          3.14
+        ],
+        [
+          3.14,
+          3.48
+        ],
+        [
+          3.48,
+          3.82
+        ],
+        [
+          3.82,
+          4.02
+        ],
+        [
+          4.02,
+          4.34
+        ],
+        [
+          4.34,
+          4.64
+        ]
+      ]
+    },
+    "send": {
+      "file": "send-0824f3e507a58d8c.mp3",
+      "key": "0824f3e507a58d8cc41c498fb777368bd133ed5d382ce11fda1c3bdd41d75746",
+      "spoken": "The request leaves the App. Its deadline is 300 milliseconds away, and the countdown starts.",
+      "caption": "The request leaves the App. Its deadline is 300 ms away, and the countdown starts.",
+      "duration": 6.709375,
+      "score": 1.0,
+      "words": [
+        [
+          0.0,
+          0.1
+        ],
+        [
+          0.1,
+          0.36
+        ],
+        [
+          0.36,
+          0.76
+        ],
+        [
+          0.76,
+          1.04
+        ],
+        [
+          1.04,
+          1.3
+        ],
+        [
+          2.0,
+          2.04
+        ],
+        [
+          2.04,
+          2.36
+        ],
+        [
+          2.36,
+          2.76
+        ],
+        [
+          2.76,
+          3.18
+        ],
+        [
+          3.18,
+          3.8
+        ],
+        [
+          3.8,
+          4.46
+        ],
+        [
+          4.46,
+          5.06
+        ],
+        [
+          5.06,
+          5.14
+        ],
+        [
+          5.14,
+          5.42
+        ],
+        [
+          5.42,
+          6.12
+        ]
+      ]
+    },
+    "queue": {
+      "file": "queue-8dbdfba44219ee56.mp3",
+      "key": "8dbdfba44219ee565e18c85b57c65447e85b21a8056a8f3ba95cb2215dae61fd",
+      "spoken": "The Gateway is busy, so the request waits in its queue. The countdown keeps running.",
+      "caption": "The Gateway is busy, so the request waits in its queue. The countdown keeps running.",
+      "duration": 5.4286875,
+      "score": 1.0,
+      "words": [
+        [
+          0.0,
+          0.12
+        ],
+        [
+          0.12,
+          0.34
+        ],
+        [
+          0.34,
+          0.72
+        ],
+        [
+          0.72,
+          1.08
+        ],
+        [
+          1.4,
+          1.5
+        ],
+        [
+          1.5,
+          1.62
+        ],
+        [
+          1.62,
+          1.88
+        ],
+        [
+          1.88,
+          2.28
+        ],
+        [
+          2.28,
+          2.54
+        ],
+        [
+          2.54,
+          2.68
+        ],
+        [
+          2.68,
+          2.92
+        ],
+        [
+          3.64,
+          3.7
+        ],
+        [
+          3.7,
+          4.0
+        ],
+        [
+          4.0,
+          4.56
+        ],
+        [
+          4.56,
+          4.92
+        ]
+      ]
+    },
+    "fan-out": {
+      "file": "fan-out-242b517ba92fc65a.mp3",
+      "key": "242b517ba92fc65a91da23741a5aff917e72032d625708c19d4e3308da2c60a0",
+      "spoken": "At 200 milliseconds the Gateway asks Services A and B. Only 100 milliseconds are left.",
+      "caption": "At 200 ms the Gateway asks Services A and B. Only 100 ms are left.",
+      "duration": 6.921375,
+      "score": 0.9655172413793104,
+      "words": [
+        [
+          0.0,
+          0.18
+        ],
+        [
+          0.18,
+          0.58
+        ],
+        [
+          0.58,
+          1.2
+        ],
+        [
+          1.54,
+          1.58
+        ],
+        [
+          1.58,
+          1.84
+        ],
+        [
+          1.84,
+          2.34
+        ],
+        [
+          2.34,
+          2.86
+        ],
+        [
+          2.86,
+          3.34
+        ],
+        [
+          3.34,
+          3.34
+        ],
+        [
+          3.34,
+          3.66
+        ],
+        [
+          4.22,
+          4.72
+        ],
+        [
+          4.72,
+          5.12
+        ],
+        [
+          5.12,
+          5.74
+        ],
+        [
+          5.74,
+          6.12
+        ],
+        [
+          6.12,
+          6.42
+        ]
+      ]
+    },
+    "before-budget": {
+      "file": "before-budget-255b6093621298f8.mp3",
+      "key": "255b6093621298f89f5e9194ef74b44c73c8608498d6312d147cdc5fb8a3d3c2",
+      "spoken": "Before: each service gets the full 200 milliseconds timeout, so B could run until 400 milliseconds, long after the deadline.",
+      "caption": "Before: each service gets the full 200 ms timeout, so B could run until 400 ms, long after the deadline.",
+      "duration": 9.9886875,
+      "score": 0.9,
+      "words": [
+        [
+          0.0,
+          0.32
+        ],
+        [
+          0.78,
+          1.1
+        ],
+        [
+          1.1,
+          1.54
+        ],
+        [
+          1.54,
+          1.8
+        ],
+        [
+          1.8,
+          2.02
+        ],
+        [
+          2.02,
+          2.26
+        ],
+        [
+          2.26,
+          3.32
+        ],
+        [
+          3.32,
+          3.32
+        ],
+        [
+          3.32,
+          4.08
+        ],
+        [
+          4.9,
+          4.98
+        ],
+        [
+          4.98,
+          5.22
+        ],
+        [
+          5.22,
+          5.5
+        ],
+        [
+          5.5,
+          5.76
+        ],
+        [
+          5.76,
+          6.14
+        ],
+        [
+          6.14,
+          7.24
+        ],
+        [
+          7.24,
+          7.24
+        ],
+        [
+          7.24,
+          8.38
+        ],
+        [
+          8.38,
+          8.86
+        ],
+        [
+          8.86,
+          9.06
+        ],
+        [
+          9.06,
+          9.36
+        ]
+      ]
+    },
+    "after-budget": {
+      "file": "after-budget-855a988c80ffdb2c.mp3",
+      "key": "855a988c80ffdb2ce0dc7bfd1e298650d4f8e956262d333d2900215d3cfe4ff8",
+      "spoken": "After: the Gateway passes the deadline on. 100 milliseconds are left, minus a 20 milliseconds reserve, so each service gets 80 milliseconds.",
+      "caption": "After: the Gateway passes the deadline on. 100 ms are left, minus a 20 ms reserve, so each service gets 80 ms.",
+      "duration": 10.930625,
+      "score": 1.0,
+      "words": [
+        [
+          0.0,
+          0.48
+        ],
+        [
+          0.78,
+          0.88
+        ],
+        [
+          0.88,
+          1.14
+        ],
+        [
+          1.14,
+          1.76
+        ],
+        [
+          1.76,
+          2.04
+        ],
+        [
+          2.04,
+          2.3
+        ],
+        [
+          2.3,
+          2.76
+        ],
+        [
+          4.04,
+          4.04
+        ],
+        [
+          4.04,
+          4.32
+        ],
+        [
+          4.32,
+          4.86
+        ],
+        [
+          4.86,
+          5.1
+        ],
+        [
+          5.78,
+          6.08
+        ],
+        [
+          6.08,
+          6.28
+        ],
+        [
+          6.28,
+          6.56
+        ],
+        [
+          6.56,
+          6.94
+        ],
+        [
+          6.94,
+          7.54
+        ],
+        [
+          8.16,
+          8.3
+        ],
+        [
+          8.3,
+          8.64
+        ],
+        [
+          8.64,
+          9.06
+        ],
+        [
+          9.06,
+          9.34
+        ],
+        [
+          9.34,
+          9.72
+        ],
+        [
+          9.72,
+          10.14
+        ]
+      ]
+    },
+    "a-answers": {
+      "file": "a-answers-e07f4d17e9dbeb08.mp3",
+      "key": "e07f4d17e9dbeb080b6f0707f60731746c8d1aec05a9f539b149b14d2b65aa58",
+      "spoken": "Service A answers in 20 milliseconds. Its reply waits in the Gateway, which sends one combined answer.",
+      "caption": "Service A answers in 20 ms. Its reply waits in the Gateway, which sends one combined answer.",
+      "duration": 7.5866875,
+      "score": 0.9696969696969697,
+      "words": [
+        [
+          0.0,
+          0.38
+        ],
+        [
+          0.38,
+          0.38
+        ],
+        [
+          0.38,
+          0.58
+        ],
+        [
+          0.58,
+          1.24
+        ],
+        [
+          1.24,
+          1.5
+        ],
+        [
+          1.5,
+          1.98
+        ],
+        [
+          2.92,
+          2.98
+        ],
+        [
+          2.98,
+          3.28
+        ],
+        [
+          3.28,
+          3.78
+        ],
+        [
+          3.78,
+          4.14
+        ],
+        [
+          4.14,
+          4.24
+        ],
+        [
+          4.24,
+          4.48
+        ],
+        [
+          5.16,
+          5.3
+        ],
+        [
+          5.3,
+          5.56
+        ],
+        [
+          5.56,
+          5.98
+        ],
+        [
+          5.98,
+          6.42
+        ],
+        [
+          6.42,
+          7.14
+        ]
+      ]
+    },
+    "b-times-out": {
+      "file": "b-times-out-1d1fb82aef1cd86b.mp3",
+      "key": "1d1fb82aef1cd86b9b8e25560fc7ed46bf98c662bc6bb85297842925684ebb2e",
+      "spoken": "Service B's 80 milliseconds run out. The Gateway marks B as timed out and builds the answer.",
+      "caption": "Service B's 80 ms run out. The Gateway marks B as timed out and builds the answer.",
+      "duration": 6.4646875,
+      "score": 1.0,
+      "words": [
+        [
+          0.0,
+          0.34
+        ],
+        [
+          0.34,
+          0.84
+        ],
+        [
+          0.84,
+          1.14
+        ],
+        [
+          1.14,
+          1.56
+        ],
+        [
+          1.56,
+          2.0
+        ],
+        [
+          2.0,
+          2.24
+        ],
+        [
+          2.98,
+          3.0
+        ],
+        [
+          3.0,
+          3.2
+        ],
+        [
+          3.2,
+          3.68
+        ],
+        [
+          3.68,
+          3.96
+        ],
+        [
+          3.96,
+          4.22
+        ],
+        [
+          4.22,
+          4.46
+        ],
+        [
+          4.46,
+          4.9
+        ],
+        [
+          4.9,
+          5.12
+        ],
+        [
+          5.12,
+          5.36
+        ],
+        [
+          5.36,
+          5.62
+        ],
+        [
+          5.62,
+          5.88
+        ]
+      ]
+    },
+    "answer-arrives": {
+      "file": "answer-arrives-13a0b9d3d8b4ec19.mp3",
+      "key": "13a0b9d3d8b4ec192cfbd54276c76c4613b232f325d5c5a060c75eb42e34d294",
+      "spoken": "The answer with A's reply reaches the App before 300 milliseconds. A's work is used.",
+      "caption": "The answer with A's reply reaches the App before 300 ms. A's work is used.",
+      "duration": 6.5313125,
+      "score": 1.0,
+      "words": [
+        [
+          0.0,
+          0.12
+        ],
+        [
+          0.12,
+          0.44
+        ],
+        [
+          0.44,
+          0.68
+        ],
+        [
+          0.68,
+          1.04
+        ],
+        [
+          1.04,
+          1.32
+        ],
+        [
+          1.32,
+          1.9
+        ],
+        [
+          1.9,
+          2.16
+        ],
+        [
+          2.16,
+          2.4
+        ],
+        [
+          2.4,
+          2.76
+        ],
+        [
+          2.76,
+          3.54
+        ],
+        [
+          3.54,
+          3.94
+        ],
+        [
+          4.94,
+          5.26
+        ],
+        [
+          5.26,
+          5.44
+        ],
+        [
+          5.44,
+          5.66
+        ],
+        [
+          5.66,
+          5.96
+        ]
+      ]
+    },
+    "deadline-passes": {
+      "file": "deadline-passes-bc23d33d08657e51.mp3",
+      "key": "bc23d33d08657e51da6621b80613d68534417d83d0fb26fb120ea17c499c3984",
+      "spoken": "300 milliseconds: the deadline passes. The App stops waiting, cancels the call, and A's reply is lost.",
+      "caption": "300 ms: the deadline passes. The App stops waiting, cancels the call, and A's reply is lost.",
+      "duration": 8.0206875,
+      "score": 1.0,
+      "words": [
+        [
+          0.0,
+          0.38
+        ],
+        [
+          0.38,
+          0.88
+        ],
+        [
+          1.7,
+          1.78
+        ],
+        [
+          1.78,
+          2.04
+        ],
+        [
+          2.04,
+          2.7
+        ],
+        [
+          3.58,
+          3.64
+        ],
+        [
+          3.64,
+          3.82
+        ],
+        [
+          3.82,
+          4.16
+        ],
+        [
+          4.16,
+          4.56
+        ],
+        [
+          4.94,
+          5.42
+        ],
+        [
+          5.42,
+          5.54
+        ],
+        [
+          5.54,
+          5.78
+        ],
+        [
+          5.78,
+          6.08
+        ],
+        [
+          6.08,
+          6.5
+        ],
+        [
+          6.5,
+          6.78
+        ],
+        [
+          6.78,
+          7.16
+        ],
+        [
+          7.16,
+          7.46
+        ]
+      ]
+    }
+  }
+}
