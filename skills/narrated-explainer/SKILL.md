@@ -72,6 +72,7 @@ explainer check <dir>      # story rules, stale narration, no network calls in t
 ```
 
 `explainer check` also verifies that the explainer fits common screens; it is not done until check passes.
+When check warns about small text at 1440x900 or larger, shorten or split the scene before calling it done.
 
 When a caption fails the speech check, fix the text, not the threshold: add a `pronounce`
 entry, rephrase, or give the moment a `say` override.

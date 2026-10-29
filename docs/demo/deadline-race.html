@@ -1556,14 +1556,18 @@
     try { storedTheme = root.localStorage.getItem(THEME_KEY); } catch (error) { /* no storage: Auto */ }
     applyTheme(THEMES.indexOf(storedTheme) === -1 ? 'auto' : storedTheme);
 
-    // Fit: with the figure's top at the window's top, the stage keeps its aspect ratio and narrows
-    // until everything above and below it also fits the window height.
+    // Fit: the stage keeps its aspect ratio and narrows until everything above and below it fits the
+    // window height. A standalone page in a landscape window fits from the page top, so the first
+    // view shows title through caption; otherwise it fits with the figure's top at the window's top.
+    const standalone = Boolean(doc.body && doc.body.classList.contains('nx-page'));
     function fit() {
       if (!root.innerHeight || typeof stage.getBoundingClientRect !== 'function') return;
       const box = stage.getBoundingClientRect();
       if (!box.width || !box.height) return;
       const outer = figure.getBoundingClientRect();
-      const free = root.innerHeight - (box.top - outer.top) - (outer.bottom - box.bottom);
+      const fromPageTop = standalone && root.innerWidth >= root.innerHeight;
+      const above = fromPageTop ? box.top + (root.scrollY || 0) : box.top - outer.top;
+      const free = root.innerHeight - above - (outer.bottom - box.bottom);
       stage.style.maxWidth = Math.max(0, Math.floor(free * box.width / box.height)) + 'px';
     }
     if (typeof root.addEventListener === 'function') root.addEventListener('resize', fit);
