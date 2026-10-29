@@ -11,9 +11,10 @@ checks every frame and hands you the file.
 
 ![The demo explainer: a stopwatch is wound to 300 ms, a request waits in a busy gateway, fans out to two services, and the deadline decides who wins](docs/demo/deadline-race.gif)
 
-**Demo:** [`docs/demo/deadline-race.html`](docs/demo/deadline-race.html) (download it and open it
-in a browser, then press Play) and [`docs/demo/deadline-race-after.mp4`](docs/demo/deadline-race-after.mp4)
-(the "After" mode as a video with sound).
+**Demo:** [open the live demo](https://ohade.github.io/narrated-explainer/demo/deadline-race.html)
+in your browser and press Play, or watch [`docs/demo/deadline-race-after.mp4`](docs/demo/deadline-race-after.mp4)
+(the "After" mode as a video with sound). The page itself is
+[`docs/demo/deadline-race.html`](docs/demo/deadline-race.html).
 
 ## What you get
 
