@@ -9,12 +9,21 @@ from .capture import WAIT_MS, Capture, launch_browser
 WINDOWS = [(1280, 720), (1440, 900), (1920, 1080), (2000, 1174), (2560, 1440), (390, 844)]
 SCHEMES = ["light", "dark"]
 
-# Walks every mode and position with the figure's top at the window's top; overflow in CSS px.
+# Walks every mode and position as the reader first sees it: a standalone page in a landscape window
+# at scroll 0, otherwise with the figure's top at the window's top. Overflow and text sizes in CSS px.
 MEASURE_JS = """() => {
   const player = NarratedExplainer.players[0];
   const figure = player.figure;
   const modes = player.story.modes && player.story.modes.length ? player.story.modes.map((m) => m.id) : ['main'];
   const page = document.documentElement;
+  const pageTop = document.body.classList.contains('nx-page') && innerWidth >= innerHeight;
+  const transparent = (el) => el && el.tagName !== 'svg'
+    && (getComputedStyle(el).opacity === '0' || transparent(el.parentElement));
+  const textSize = (el) => {
+    const shown = el.textContent.trim() && getComputedStyle(el).visibility === 'visible' && !transparent(el);
+    const matrix = shown ? el.getScreenCTM() : null;
+    return matrix ? parseFloat(getComputedStyle(el).fontSize) * Math.hypot(matrix.a, matrix.b) : Infinity;
+  };
   const past = (el) => {
     const box = el.getBoundingClientRect();
     return Math.max(0, box.bottom - innerHeight, box.right - innerWidth, -box.top, -box.left);
@@ -23,10 +32,11 @@ MEASURE_JS = """() => {
   for (const mode of modes) {
     player.positions(mode).forEach((_, index) => {
       player.goto(mode, index);
-      scrollTo(0, figure.getBoundingClientRect().top + scrollY);
+      scrollTo(0, pageTop ? 0 : figure.getBoundingClientRect().top + scrollY);
       const stage = [figure.querySelector('.nx-stage'), ...figure.querySelectorAll('.nx-stage svg')];
       cases.push({ mode, index, stage: Math.max(...stage.map(past)), caption: past(figure.querySelector('figcaption')),
-                   sideways: Math.max(0, page.scrollWidth - page.clientWidth) });
+                   sideways: Math.max(0, page.scrollWidth - page.clientWidth), pageTop,
+                   text: Math.min(...[...figure.querySelectorAll('.nx-stage svg text')].map(textSize)) });
     });
   }
   return cases;
@@ -80,22 +90,39 @@ class LivePage(Capture):
         return cases
 
 
-def check_layout(path: Path, css: str = "") -> list[str]:
-    """One error per window, scheme, mode and step where the player does not fit."""
-    errors = []
+SMALL_TEXT_PX = 11
+
+
+def inspect_layout(path: Path, css: str = "") -> tuple[list[str], list[str]]:
+    """Errors for each window, scheme, mode and step where the player does not fit;
+    one warning per window whose smallest stage text is under SMALL_TEXT_PX."""
+    errors, warnings = [], []
     try:
         with LivePage(path, css=css) as live:
-            for scheme in SCHEMES:
-                for width, height in WINDOWS:
+            for width, height in WINDOWS:
+                smallest = None
+                for scheme in SCHEMES:
                     live.resize(width, height, scheme)
                     for case in live.measure():
-                        problems = [f"{part} extends {round(case[part] + 0.49)}px past the window"
+                        rule = "fit from the page top" if case["pageTop"] else "fit from the figure top"
+                        problems = [f"{part} extends {round(case[part] + 0.49)}px past the window ({rule})"
                                     for part in ("stage", "caption") if case[part] > 0.5]
                         if case["sideways"] > 0.5:
                             problems.append(f"page scrolls sideways by {round(case['sideways'] + 0.49)}px")
                         if problems:
                             errors.append(f"{path.name}: {width}x{height} {scheme}, mode {case['mode']}, "
                                           f"step {case['index'] + 1}: " + "; ".join(problems))
+                        if smallest is None or case["text"] < smallest["text"]:
+                            smallest = case
+                if smallest and smallest["text"] < SMALL_TEXT_PX:
+                    warnings.append(f"{path.name}: {width}x{height}: smallest stage text is "
+                                    f"{smallest['text']:.1f}px at mode {smallest['mode']}, step "
+                                    f"{smallest['index'] + 1}; shorten or split the scene")
     except (RuntimeError, Error) as error:
-        return [f"{path.name}: layout check failed: {error}"]
-    return errors
+        return [f"{path.name}: layout check failed: {error}"], []
+    return errors, warnings
+
+
+def check_layout(path: Path, css: str = "") -> list[str]:
+    """One error per window, scheme, mode and step where the player does not fit."""
+    return inspect_layout(path, css)[0]
