@@ -449,12 +449,12 @@ test('player.css: .nx selectors, palette-only hex, both palettes, 44 px buttons,
   }
   const tones = ['ink', 'ink-2', 'page', 'sunken', 'hairline', 'edge'];
   for (const tone of ['info', 'ok', 'warn', 'stop']) tones.push(tone + '-fg', tone + '-bg');
-  const dark = css.slice(css.indexOf('prefers-color-scheme: dark'));
-  assert.ok(css.includes('prefers-color-scheme: dark'));
+  // One palette: every tone is light-dark(light, dark), and each colour value is written once.
+  assert.ok(/color-scheme:\s*light dark/.test(css));
   for (const tone of tones) {
-    assert.ok(new RegExp('--nx-' + tone + ':\\s*#').test(css), 'light ' + tone);
-    assert.ok(new RegExp('--nx-' + tone + ':\\s*#').test(dark), 'dark ' + tone);
+    assert.ok(new RegExp('--nx-' + tone + ':\\s*light-dark\\(#[0-9a-f]{6},\\s*#[0-9a-f]{6}\\)').test(css), 'light and dark ' + tone);
   }
+  assert.equal((css.match(/#[0-9a-fA-F]{3,8}\b/g) || []).length, tones.length * 2, 'each colour value written once');
   for (const tone of ['info', 'ok', 'warn', 'stop']) {
     for (const cls of ['nx-fill-' + tone + '-fg', 'nx-fill-' + tone + '-bg', 'nx-stroke-' + tone]) {
       assert.ok(css.includes('.' + cls), cls);
@@ -651,4 +651,43 @@ test('selecting the active mode by button or digit key keeps the narration clip 
   assert.equal(seen(figure).play, 'Pause');
   byClass(figure, 'nx-mode').find((b) => b.textContent === 'Bumpy').click();
   assert.equal(audio.pauses, pauses + 1, 'a real mode change stops the clip');
+});
+
+function mountThemed(localStorage) {
+  const context = load({ performance: { now: () => 0 }, requestAnimationFrame: () => 1, cancelAnimationFrame() {}, localStorage });
+  vm.runInContext(read('tests/fixtures/mini/scene.js'), context, { filename: 'scene.js' });
+  const figure = fakeDocument().createElement('figure');
+  context.NarratedExplainer.mount(figure, { story, narration: null });
+  return figure;
+}
+
+test('the Theme control cycles Auto, Light, Dark, stores the choice and applies a stored one on load', () => {
+  const store = {};
+  const storage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+  const figure = mountThemed(storage);
+  const theme = byClass(figure, 'nx-theme')[0];
+  assert.ok(theme, 'the player has a Theme control');
+  const state = () => [theme.textContent, figure.getAttribute('data-nx-theme'), Object.values(store).join()];
+  assert.deepEqual(state(), ['Theme: Auto', null, '']);
+  theme.click();
+  assert.deepEqual(state(), ['Theme: Light', 'light', 'light']);
+  theme.click();
+  assert.deepEqual(state(), ['Theme: Dark', 'dark', 'dark']);
+  theme.click();
+  assert.deepEqual(state(), ['Theme: Auto', null, 'auto']);
+  theme.click();
+  theme.click();
+  const again = mountThemed(storage);
+  assert.equal(again.getAttribute('data-nx-theme'), 'dark');
+  assert.equal(byClass(again, 'nx-theme')[0].textContent, 'Theme: Dark');
+});
+
+test('the Theme control still works when storage throws', () => {
+  const broken = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
+  const figure = mountThemed(broken);
+  const theme = byClass(figure, 'nx-theme')[0];
+  assert.ok(theme, 'the player has a Theme control');
+  theme.click();
+  assert.equal(figure.getAttribute('data-nx-theme'), 'light');
+  assert.equal(byClass(figure, 'nx-play')[0].textContent, 'Play');
 });

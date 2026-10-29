@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 
 from .bundle import inspect_html, is_fragment_html
+from .layout import check_layout
 from .narration import clip_path, load_manifest, stale_reasons
 from .story import load_story
 
@@ -43,6 +44,7 @@ def check_story(directory: Path) -> dict:
     for path in sorted((directory / "dist").glob("*.html")):
         text = path.read_text(encoding="utf-8")
         errors.extend(f"{path.name}: {error}" for error in inspect_html(text))
+        errors.extend(check_layout(path))
         if is_fragment_html(text) and "CSP: host page's responsibility" not in info:
             info.append("CSP: host page's responsibility")
         built.append({"file": path.name, "bytes": path.stat().st_size})

@@ -9,6 +9,7 @@ CAPTURE_CSS = """
 body.nx-page { padding: 0 !important; margin: 0 !important; }
 body.nx-page > :not(figure.nx) { display: none !important; }
 figure.nx { margin: 0 !important; max-width: none !important; }
+figure.nx .nx-stage { max-width: none !important; }
 figure.nx .nx-bar { position: static !important; }
 """
 VIDEO_CSS = "figure.nx .nx-controls { display: none !important; }"

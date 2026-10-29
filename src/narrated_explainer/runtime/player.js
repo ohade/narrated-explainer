@@ -17,7 +17,10 @@
     play: 'Play', pause: 'Pause', restart: 'Restart', prev: 'Previous', next: 'Next',
     voiceOn: 'Voice: on', voiceOff: 'Voice: off', soundOn: 'Sound: on', soundOff: 'Sound: off',
     speed: 'Speed', mode: 'Mode', transcript: 'Transcript', fullscreen: 'Fullscreen',
+    themeAuto: 'Theme: Auto', themeLight: 'Theme: Light', themeDark: 'Theme: Dark',
   };
+  const THEMES = ['auto', 'light', 'dark'];
+  const THEME_KEY = 'narrated-explainer-theme';
 
   const finite = (v, fallback) => (typeof v === 'number' && isFinite(v) ? v : fallback);
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -544,6 +547,7 @@
     const transcriptButton = button(controls, 'nx-transcript-toggle', labels.transcript, { 'aria-expanded': 'false', 'aria-controls': uid + '-transcript' });
     const fullscreenButton = button(controls, 'nx-fullscreen', labels.fullscreen);
     if (typeof figure.requestFullscreen !== 'function') fullscreenButton.hidden = true;
+    const themeButton = button(controls, 'nx-theme', labels.themeAuto);
     const progress = bar.appendChild(h(doc, 'div', { class: 'nx-progress' }));
     const stage = figure.appendChild(h(doc, 'div', { class: 'nx-stage' }));
     // The figcaption is the figure's last child (HTML content model), so the transcript comes first.
@@ -602,6 +606,7 @@
         return captionEl.appendChild(h(doc, 'span', { class: 'nx-word' }, word));
       });
       ui.word = -1;
+      fit();
     }
 
     function renderWord(index) {
@@ -701,7 +706,38 @@
     function toggleTranscript() {
       transcript.hidden = !transcript.hidden;
       transcriptButton.setAttribute('aria-expanded', String(!transcript.hidden));
+      fit();
     }
+    // Theme: Auto follows the operating system; a choice is remembered when storage allows it.
+    const themed = doc.body && doc.body.classList.contains('nx') ? [figure, doc.body] : [figure];
+    function applyTheme(theme) {
+      ui.theme = theme;
+      themed.forEach((el) => {
+        if (theme === 'auto') el.removeAttribute('data-nx-theme');
+        else el.setAttribute('data-nx-theme', theme);
+      });
+      themeButton.textContent = labels['theme' + theme[0].toUpperCase() + theme.slice(1)];
+    }
+    function cycleTheme() {
+      applyTheme(THEMES[(THEMES.indexOf(ui.theme) + 1) % THEMES.length]);
+      try { root.localStorage.setItem(THEME_KEY, ui.theme); } catch (error) { /* playback does not need storage */ }
+    }
+    let storedTheme = null;
+    try { storedTheme = root.localStorage.getItem(THEME_KEY); } catch (error) { /* no storage: Auto */ }
+    applyTheme(THEMES.indexOf(storedTheme) === -1 ? 'auto' : storedTheme);
+
+    // Fit: with the figure's top at the window's top, the stage keeps its aspect ratio and narrows
+    // until everything above and below it also fits the window height.
+    function fit() {
+      if (!root.innerHeight || typeof stage.getBoundingClientRect !== 'function') return;
+      const box = stage.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      const outer = figure.getBoundingClientRect();
+      const free = root.innerHeight - (box.top - outer.top) - (outer.bottom - box.bottom);
+      stage.style.maxWidth = Math.max(0, Math.floor(free * box.width / box.height)) + 'px';
+    }
+    if (typeof root.addEventListener === 'function') root.addEventListener('resize', fit);
+
     function toggleFullscreen() {
       if (doc.fullscreenElement === figure) doc.exitFullscreen();
       else if (typeof figure.requestFullscreen === 'function') figure.requestFullscreen();
@@ -715,6 +751,7 @@
     soundButton.addEventListener('click', toggleSound);
     transcriptButton.addEventListener('click', toggleTranscript);
     fullscreenButton.addEventListener('click', toggleFullscreen);
+    themeButton.addEventListener('click', cycleTheme);
     if (reducedQuery && reducedQuery.addEventListener) {
       reducedQuery.addEventListener('change', () => { c.setReduced(reducedQuery.matches); renderLive(clock()); });
     }

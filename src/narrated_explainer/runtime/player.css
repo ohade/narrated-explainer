@@ -1,43 +1,27 @@
 /* Narrated Explainer player styles. Every selector starts with .nx; colours come only from the
-   tone custom properties below. Hex literals appear only in the two palette definitions. */
+   tone custom properties below. Hex literals appear only in the palette definition. */
 
-/* Light palette */
+/* Palette: light-dark(light, dark), resolved by color-scheme. Auto follows the operating system;
+   the Theme control sets data-nx-theme on every .nx element the player owns. */
 .nx {
-  --nx-ink: #1d1f23;
-  --nx-ink-2: #4a4f57;
-  --nx-page: #ffffff;
-  --nx-sunken: #f1f2f4;
-  --nx-hairline: #d6d9de;
-  --nx-edge: #7c828c;
-  --nx-info-fg: #2f4c9c;
-  --nx-info-bg: #e4eafa;
-  --nx-ok-fg: #1c6b45;
-  --nx-ok-bg: #e0f2e8;
-  --nx-warn-fg: #8a5300;
-  --nx-warn-bg: #fcefd6;
-  --nx-stop-fg: #a3282a;
-  --nx-stop-bg: #fbe5e5;
+  color-scheme: light dark;
+  --nx-ink: light-dark(#1d1f23, #eceef1);
+  --nx-ink-2: light-dark(#4a4f57, #b6bbc3);
+  --nx-page: light-dark(#ffffff, #15171a);
+  --nx-sunken: light-dark(#f1f2f4, #23262b);
+  --nx-hairline: light-dark(#d6d9de, #373b42);
+  --nx-edge: light-dark(#7c828c, #7a808a);
+  --nx-info-fg: light-dark(#2f4c9c, #a3b9f6);
+  --nx-info-bg: light-dark(#e4eafa, #1f2a48);
+  --nx-ok-fg: light-dark(#1c6b45, #82d4a8);
+  --nx-ok-bg: light-dark(#e0f2e8, #173427);
+  --nx-warn-fg: light-dark(#8a5300, #f1c56f);
+  --nx-warn-bg: light-dark(#fcefd6, #3a2b10);
+  --nx-stop-fg: light-dark(#a3282a, #f39d9d);
+  --nx-stop-bg: light-dark(#fbe5e5, #3e1c1d);
 }
-
-/* Dark palette */
-@media (prefers-color-scheme: dark) {
-  .nx {
-    --nx-ink: #eceef1;
-    --nx-ink-2: #b6bbc3;
-    --nx-page: #15171a;
-    --nx-sunken: #23262b;
-    --nx-hairline: #373b42;
-    --nx-edge: #7a808a;
-    --nx-info-fg: #a3b9f6;
-    --nx-info-bg: #1f2a48;
-    --nx-ok-fg: #82d4a8;
-    --nx-ok-bg: #173427;
-    --nx-warn-fg: #f1c56f;
-    --nx-warn-bg: #3a2b10;
-    --nx-stop-fg: #f39d9d;
-    --nx-stop-bg: #3e1c1d;
-  }
-}
+.nx[data-nx-theme="light"] { color-scheme: light; }
+.nx[data-nx-theme="dark"] { color-scheme: dark; }
 
 /* Derived tones: the neutral tones as fg/bg pairs, resolved against whichever palette applies. */
 .nx {
@@ -130,7 +114,8 @@
 .nx .nx-progress .nx-marker.nx-passed::before { background: var(--nx-info-fg); border-color: var(--nx-info-fg); }
 .nx .nx-progress .nx-marker[aria-current="step"]::before { height: 16px; margin-top: -8px; }
 
-.nx .nx-stage { margin: 12px 0 0; min-width: 0; }
+/* The player sets max-width so the bar, stage and caption fit the window; auto margins centre it. */
+.nx .nx-stage { margin: 12px auto 0; min-width: 0; }
 .nx .nx-stage svg { display: block; width: 100%; max-width: 100%; height: auto; }
 
 .nx .nx-caption { margin: 12px 0 0; min-height: 3em; font-size: 22px; line-height: 1.45; color: var(--nx-ink); }
