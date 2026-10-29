@@ -180,6 +180,7 @@ SVG helpers that return small handles with setters, so `draw` only changes attri
 Colours come only from tones: `ink`, `ink-2`, `info`, `ok`, `warn`, `stop`, `sunken`, each with a
 foreground and a background custom property (`--nx-ok-fg`, `--nx-ok-bg`, ...). `player.css`
 defines a light and a dark palette. Scenes never write hex or rgb colours.
+The palette uses CSS `light-dark()`, so the player needs a browser from 2024 or later (Chrome 123, Firefox 120, Safari 17.5).
 
 ### sfx.js
 

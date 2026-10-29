@@ -7,7 +7,7 @@ import re
 
 ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 CUES = set("click pop whoosh tick ding success fail alarm wind thud".split())
-LABELS = set("play pause restart prev next voiceOn voiceOff soundOn soundOff speed mode transcript fullscreen".split())
+LABELS = set("play pause restart prev next voiceOn voiceOff soundOn soundOff speed mode transcript fullscreen themeAuto themeLight themeDark".split())
 
 
 def finite_number(value: object, minimum: float = 0, positive: bool = False) -> bool:
