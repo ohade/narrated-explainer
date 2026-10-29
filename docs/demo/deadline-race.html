@@ -1,44 +1,28 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src data:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>Racing the deadline</title><style>body.nx-page{padding:24px;font-family:system-ui,sans-serif;}body.nx-page>h1{color:var(--nx-ink);}body.nx-page>p,body.nx-page>footer{color:var(--nx-ink-2);}body.nx-page>footer{margin-top:24px;}body.nx-page>footer a{color:var(--nx-info-fg);}</style></head><body class="nx nx-page"><h1>Racing the deadline</h1><p>An app gives a request 300 ms. The request first waits in a busy gateway, then fans out to two services. Compare what happens when the gateway ignores the deadline (Before) with what happens when it passes the remaining time on (After).</p><figure class="nx"></figure>
 <style>/* Narrated Explainer player styles. Every selector starts with .nx; colours come only from the
-   tone custom properties below. Hex literals appear only in the two palette definitions. */
+   tone custom properties below. Hex literals appear only in the palette definition. */
 
-/* Light palette */
+/* Palette: light-dark(light, dark), resolved by color-scheme. Auto follows the operating system;
+   the Theme control sets data-nx-theme on every .nx element the player owns. */
 .nx {
-  --nx-ink: #1d1f23;
-  --nx-ink-2: #4a4f57;
-  --nx-page: #ffffff;
-  --nx-sunken: #f1f2f4;
-  --nx-hairline: #d6d9de;
-  --nx-edge: #7c828c;
-  --nx-info-fg: #2f4c9c;
-  --nx-info-bg: #e4eafa;
-  --nx-ok-fg: #1c6b45;
-  --nx-ok-bg: #e0f2e8;
-  --nx-warn-fg: #8a5300;
-  --nx-warn-bg: #fcefd6;
-  --nx-stop-fg: #a3282a;
-  --nx-stop-bg: #fbe5e5;
+  color-scheme: light dark;
+  --nx-ink: light-dark(#1d1f23, #eceef1);
+  --nx-ink-2: light-dark(#4a4f57, #b6bbc3);
+  --nx-page: light-dark(#ffffff, #15171a);
+  --nx-sunken: light-dark(#f1f2f4, #23262b);
+  --nx-hairline: light-dark(#d6d9de, #373b42);
+  --nx-edge: light-dark(#7c828c, #7a808a);
+  --nx-info-fg: light-dark(#2f4c9c, #a3b9f6);
+  --nx-info-bg: light-dark(#e4eafa, #1f2a48);
+  --nx-ok-fg: light-dark(#1c6b45, #82d4a8);
+  --nx-ok-bg: light-dark(#e0f2e8, #173427);
+  --nx-warn-fg: light-dark(#8a5300, #f1c56f);
+  --nx-warn-bg: light-dark(#fcefd6, #3a2b10);
+  --nx-stop-fg: light-dark(#a3282a, #f39d9d);
+  --nx-stop-bg: light-dark(#fbe5e5, #3e1c1d);
 }
-
-/* Dark palette */
-@media (prefers-color-scheme: dark) {
-  .nx {
-    --nx-ink: #eceef1;
-    --nx-ink-2: #b6bbc3;
-    --nx-page: #15171a;
-    --nx-sunken: #23262b;
-    --nx-hairline: #373b42;
-    --nx-edge: #7a808a;
-    --nx-info-fg: #a3b9f6;
-    --nx-info-bg: #1f2a48;
-    --nx-ok-fg: #82d4a8;
-    --nx-ok-bg: #173427;
-    --nx-warn-fg: #f1c56f;
-    --nx-warn-bg: #3a2b10;
-    --nx-stop-fg: #f39d9d;
-    --nx-stop-bg: #3e1c1d;
-  }
-}
+.nx[data-nx-theme="light"] { color-scheme: light; }
+.nx[data-nx-theme="dark"] { color-scheme: dark; }
 
 /* Derived tones: the neutral tones as fg/bg pairs, resolved against whichever palette applies. */
 .nx {
@@ -131,7 +115,8 @@
 .nx .nx-progress .nx-marker.nx-passed::before { background: var(--nx-info-fg); border-color: var(--nx-info-fg); }
 .nx .nx-progress .nx-marker[aria-current="step"]::before { height: 16px; margin-top: -8px; }
 
-.nx .nx-stage { margin: 12px 0 0; min-width: 0; }
+/* The player sets max-width so the bar, stage and caption fit the window; auto margins centre it. */
+.nx .nx-stage { margin: 12px auto 0; min-width: 0; }
 .nx .nx-stage svg { display: block; width: 100%; max-width: 100%; height: auto; }
 
 .nx .nx-caption { margin: 12px 0 0; min-height: 3em; font-size: 22px; line-height: 1.45; color: var(--nx-ink); }
@@ -862,7 +847,10 @@
     play: 'Play', pause: 'Pause', restart: 'Restart', prev: 'Previous', next: 'Next',
     voiceOn: 'Voice: on', voiceOff: 'Voice: off', soundOn: 'Sound: on', soundOff: 'Sound: off',
     speed: 'Speed', mode: 'Mode', transcript: 'Transcript', fullscreen: 'Fullscreen',
+    themeAuto: 'Theme: Auto', themeLight: 'Theme: Light', themeDark: 'Theme: Dark',
   };
+  const THEMES = ['auto', 'light', 'dark'];
+  const THEME_KEY = 'narrated-explainer-theme';
 
   const finite = (v, fallback) => (typeof v === 'number' && isFinite(v) ? v : fallback);
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -1389,6 +1377,7 @@
     const transcriptButton = button(controls, 'nx-transcript-toggle', labels.transcript, { 'aria-expanded': 'false', 'aria-controls': uid + '-transcript' });
     const fullscreenButton = button(controls, 'nx-fullscreen', labels.fullscreen);
     if (typeof figure.requestFullscreen !== 'function') fullscreenButton.hidden = true;
+    const themeButton = button(controls, 'nx-theme', labels.themeAuto);
     const progress = bar.appendChild(h(doc, 'div', { class: 'nx-progress' }));
     const stage = figure.appendChild(h(doc, 'div', { class: 'nx-stage' }));
     // The figcaption is the figure's last child (HTML content model), so the transcript comes first.
@@ -1447,6 +1436,7 @@
         return captionEl.appendChild(h(doc, 'span', { class: 'nx-word' }, word));
       });
       ui.word = -1;
+      fit();
     }
 
     function renderWord(index) {
@@ -1546,7 +1536,38 @@
     function toggleTranscript() {
       transcript.hidden = !transcript.hidden;
       transcriptButton.setAttribute('aria-expanded', String(!transcript.hidden));
+      fit();
     }
+    // Theme: Auto follows the operating system; a choice is remembered when storage allows it.
+    const themed = doc.body && doc.body.classList.contains('nx') ? [figure, doc.body] : [figure];
+    function applyTheme(theme) {
+      ui.theme = theme;
+      themed.forEach((el) => {
+        if (theme === 'auto') el.removeAttribute('data-nx-theme');
+        else el.setAttribute('data-nx-theme', theme);
+      });
+      themeButton.textContent = labels['theme' + theme[0].toUpperCase() + theme.slice(1)];
+    }
+    function cycleTheme() {
+      applyTheme(THEMES[(THEMES.indexOf(ui.theme) + 1) % THEMES.length]);
+      try { root.localStorage.setItem(THEME_KEY, ui.theme); } catch (error) { /* playback does not need storage */ }
+    }
+    let storedTheme = null;
+    try { storedTheme = root.localStorage.getItem(THEME_KEY); } catch (error) { /* no storage: Auto */ }
+    applyTheme(THEMES.indexOf(storedTheme) === -1 ? 'auto' : storedTheme);
+
+    // Fit: with the figure's top at the window's top, the stage keeps its aspect ratio and narrows
+    // until everything above and below it also fits the window height.
+    function fit() {
+      if (!root.innerHeight || typeof stage.getBoundingClientRect !== 'function') return;
+      const box = stage.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      const outer = figure.getBoundingClientRect();
+      const free = root.innerHeight - (box.top - outer.top) - (outer.bottom - box.bottom);
+      stage.style.maxWidth = Math.max(0, Math.floor(free * box.width / box.height)) + 'px';
+    }
+    if (typeof root.addEventListener === 'function') root.addEventListener('resize', fit);
+
     function toggleFullscreen() {
       if (doc.fullscreenElement === figure) doc.exitFullscreen();
       else if (typeof figure.requestFullscreen === 'function') figure.requestFullscreen();
@@ -1560,6 +1581,7 @@
     soundButton.addEventListener('click', toggleSound);
     transcriptButton.addEventListener('click', toggleTranscript);
     fullscreenButton.addEventListener('click', toggleFullscreen);
+    themeButton.addEventListener('click', cycleTheme);
     if (reducedQuery && reducedQuery.addEventListener) {
       reducedQuery.addEventListener('change', () => { c.setReduced(reducedQuery.matches); renderLive(clock()); });
     }

@@ -27,6 +27,7 @@ Run through this list with the snapshots open. Each item names what to look for 
 | Check | Command |
 |---|---|
 | Story rules, stale narration, network calls | `explainer check <dir>` |
+| Fits common screens in light and dark; not done until it passes | `explainer check <dir>` exit 0 |
 | Every caption passed the speech check | `explainer narrate <dir>` exit 0 |
 | No console errors in any position | `explainer snapshots <dir>` exit 0 |
 | Keyboard: Space, Left, Right, R, V, S, T, F, 1-9 | Try them once in a browser |

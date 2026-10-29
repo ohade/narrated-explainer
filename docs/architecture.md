@@ -197,7 +197,7 @@ video. The audio context is created on the first click.
 | `explainer new <dir>` | A starter story folder |
 | `explainer narrate <dir>` | Records every caption, checks it, writes `narration/` |
 | `explainer build <dir> [--fragment]` | `dist/<id>.html`, or a `<figure>` fragment to paste into another page |
-| `explainer check <dir>` | Static checks on the story and the built file |
+| `explainer check <dir>` | Static checks on the story and the built file, and that the player fits common windows |
 | `explainer snapshots <dir>` | One PNG per mode and position in `dist/snapshots/`, and a failure on any console error |
 | `explainer video <dir> [--mode m] [--fps 30] [--format mp4\|gif]` | An MP4 with the soundtrack, or a silent GIF |
 | `explainer models fetch` | Downloads and hash-checks the voice and speech-check models |

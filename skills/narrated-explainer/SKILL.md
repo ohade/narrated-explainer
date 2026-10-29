@@ -71,6 +71,8 @@ explainer build <dir>      # writes <dir>/dist/<id>.html
 explainer check <dir>      # story rules, stale narration, no network calls in the file
 ```
 
+`explainer check` also verifies that the explainer fits common screens; it is not done until check passes.
+
 When a caption fails the speech check, fix the text, not the threshold: add a `pronounce`
 entry, rephrase, or give the moment a `say` override.
 
