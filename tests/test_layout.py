@@ -10,6 +10,11 @@ from narrated_explainer.check import check_story
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "deadline-race"
 NO_FIT = "figure.nx .nx-stage { max-width: none !important; }"
+# Keeps the control row and each button label on one line, so the stage's top does not depend on how wide
+# the default font is (DejaVu Sans on Linux wraps the row to two lines at width 1280).
+ONE_LINE_CONTROLS = """figure.nx .nx-controls, figure.nx .nx-group {
+  flex-wrap: nowrap !important; overflow: hidden !important; white-space: nowrap !important;
+}"""
 LIGHT_PAGE, DARK_PAGE = "rgb(255, 255, 255)", "rgb(21, 23, 26)"
 
 
@@ -43,10 +48,14 @@ def test_check_reports_missing_chromium_with_the_setup_hint(race, monkeypatch):
 
 
 def test_capture_keeps_the_stage_geometry_at_width_1280(race):
-    # Measured on the player before the fit rule existed.
+    # Measured on the player before the fit rule existed. The one-line row would hide a Theme control that
+    # takes space in capture, so that is asserted on its own.
     with capture.Capture(race / "dist/deadline-race.html", width=1280) as browser:
+        browser.page.add_style_tag(content=ONE_LINE_CONTROLS)
         box = browser.figure.locator(".nx-stage").bounding_box()
+        theme = browser.figure.locator(".nx-theme").bounding_box()
     assert box == {"x": 0, "y": 125, "width": 1280, "height": 1130.65625}
+    assert theme is None, "the Theme control takes no space in capture"
 
 
 PAGE_COLOURS_JS = """(presses) => {
