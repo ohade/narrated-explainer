@@ -22,10 +22,17 @@ the local models.
 
 ## 1. Understand the material
 
-Read all of it. Then write down, for yourself:
+Read all of it. Then read `references/simplifying.md`: it says how to cut, order and rename a
+hard subject before anything is drawn. Then write down, for yourself:
 
 - **The one takeaway**: the sentence a viewer should be able to say afterwards.
 - **The audience**: what they already know. Explain every term they do not.
+- **The facts in teaching order**: the minimum facts a viewer needs to reach the takeaway, each
+  one using only what came before it.
+- **The familiar object and its mapping, if any**: what stands for the rule, what each part
+  means, and where the likeness ends.
+- **The plain-word term list**: one plain word per actor, used everywhere; code names only in the
+  description or a legend.
 - **A contrast, if there is one**: before and after, slow and fast, option A and option B. A
   contrast becomes two modes that the viewer switches between, and it is the strongest teaching
   device this format has.
@@ -35,7 +42,9 @@ audience or which contrast matters). Otherwise decide and state your assumption.
 
 ## 2. Storyboard before code
 
-Create the folder with `explainer new <dir>`, then write `<dir>/storyboard.md`:
+Create the folder with `explainer new <dir>`, then write `<dir>/storyboard.md`. It builds from
+what step 1 produced: the actors take their names from the term list, the model carries the
+object's mapping, and the moments follow the facts in teaching order.
 
 1. The takeaway, the audience and the modes.
 2. **Actors**: three to six things on screen (boxes, people, a stopwatch, a queue, tokens that
@@ -90,6 +99,9 @@ until all of these hold, using `references/quality-checklist.md`:
 - Every label is readable: at least 18 units high, a halo where it crosses a line.
 - The at-rest frame alone tells the whole story.
 - Each moment shows exactly the change its caption describes.
+- The read-back test in `references/simplifying.md` passes: every term is defined before it is
+  used, no moment depends on something not yet shown, and someone new to the subject can say what
+  causes the outcome and what changes if one input changes.
 
 ## 6. Deliver
 
