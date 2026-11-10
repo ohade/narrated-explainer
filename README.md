@@ -107,7 +107,7 @@ Story options live in `story.json`; command options are flags.
 | Option | Where | Values | Default |
 |---|---|---|---|
 | Voice | `story.json` `voice` | `engine` (`kokoro` or `http`), `voice`, `speed` | Kokoro `am_michael`, speed 1.0 |
-| Pronunciation | `story.json` `pronounce` | a map from a word to how to say it, applied as whole words | none |
+| Pronunciation | `story.json` `pronounce` | a map from a word to how to say it, applied as whole words; it overrides the built-in respellings | built-in respellings for `datetime`, `enum`, `k8s`, `Redis`, `stdout` |
 | Spoken text for one moment | moment `say` | the text the narrator reads instead of the caption | the caption |
 | Modes | `story.json` `modes` | two or more modes for a contrast (before/after, A/B) | one mode, `main` |
 | No narration | `build`, `snapshots`, `video` `--no-voice` | build without the voice, keep sound cues | voice on |

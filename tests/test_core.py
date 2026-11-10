@@ -33,6 +33,13 @@ def test_spoken_rules_and_whole_words():
     assert spoken_text("ignored ✓", {"API": "A P I"}, "API & 2 ms") == "A P I and 2 milliseconds"
 
 
+def test_built_in_pronunciations_yield_to_the_story():
+    # eSpeak, which phonemizes for the built-in Kokoro voice, misreads these terms.
+    assert spoken_text("An idempotent enum in k8s.") == "An idempotent ee num in Kates."
+    assert spoken_text("A regex on stdout, a Redis datetime.") == "A regex on standard out, a reddis date time."
+    assert spoken_text("The enum and the k8s pod.", {"enum": "enum"}) == "The enum and the Kates pod."
+
+
 @pytest.mark.parametrize("expected,heard", [
     ("Wait 200 milliseconds", "Wait two hundred milliseconds"),
     ("Wait 0.5 seconds", "Wait point five seconds"),

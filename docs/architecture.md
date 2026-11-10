@@ -208,7 +208,10 @@ video. The audio context is created on the first click.
 
 1. For each intro step and moment, the spoken text is `say`, or `caption` with `pronounce` and
    the default rules applied (symbols such as ✓ and ✕ are dropped; `200 ms` becomes
-   `200 milliseconds`; `%` becomes `percent`; `&` becomes `and`).
+   `200 milliseconds`; `%` becomes `percent`; `&` becomes `and`). Before them, a few technical
+   terms that the built-in voice misreads get a respelling (`enum` becomes `ee num`, `k8s` becomes
+   `Kates`; the list is `BUILT_IN_PRONOUNCE` in `speech.py`). An entry in `pronounce` with the
+   same word wins, so `"enum": "enum"` turns one off.
 2. A clip is reused when the manifest holds the same hash of engine, voice, speed and spoken
    text. Otherwise the voice engine records it.
 3. The clip is encoded as mono 48 kbps MP3.

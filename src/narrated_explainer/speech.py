@@ -12,13 +12,24 @@ SMALL = dict(zip(
 TENS = dict(zip("twenty thirty forty fifty sixty seventy eighty ninety".split(), range(20, 100, 10)))
 SCALES = {"thousand": 1000, "million": 1000000, "billion": 1000000000}
 TOKEN = re.compile(r"[+-]?\d[\d,]*(?:\.\d+)?|[a-z]+", re.I)
+# Respellings for technical terms that eSpeak, the built-in voice's phonemizer, misreads.
+# Checked 2026-11-10 with espeakng-loader 0.2.4 and the Whisper check: each respelling made a failing
+# or odd-sounding take pass. "idempotent" and "regex" got worse when respelled, so they are not here.
+BUILT_IN_PRONOUNCE = {
+    "datetime": "date time",
+    "enum": "ee num",
+    "k8s": "Kates",
+    "Redis": "reddis",
+    "stdout": "standard out",
+}
 
 
 def spoken_text(caption: str, pronounce: dict | None = None, say: str | None = None) -> str:
-    """Apply whole-word pronunciations and the default symbol/unit rules."""
+    """Apply whole-word pronunciations, the story's over the built-in ones, and the default symbol/unit rules."""
     text = caption if say is None else say
-    for word, replacement in (pronounce or {}).items():
-        text = re.sub(r"(?<!\w)" + re.escape(word) + r"(?!\w)", lambda _: replacement, text)
+    replacements = {**BUILT_IN_PRONOUNCE, **(pronounce or {})}
+    words = "|".join(re.escape(word) for word in sorted(replacements, key=len, reverse=True))
+    text = re.sub(rf"(?<!\w)(?:{words})(?!\w)", lambda match: replacements[match.group()], text)
     text = re.sub(r"\bms\b", "milliseconds", text)
     text = text.replace("%", " percent").replace("&", " and ")
     text = re.sub(r"[✓✔✕✖✗×]", "", text)
