@@ -100,6 +100,28 @@ Start with [`docs/architecture.md`](docs/architecture.md) (the full contract) an
 [`skills/narrated-explainer/references/scene-authoring.md`](skills/narrated-explainer/references/scene-authoring.md)
 (the kit API and patterns). The demo lives in [`examples/deadline-race/`](examples/deadline-race/).
 
+## Options
+
+Story options live in `story.json`; command options are flags.
+
+| Option | Where | Values | Default |
+|---|---|---|---|
+| Voice | `story.json` `voice` | `engine` (`kokoro` or `http`), `voice`, `speed` | Kokoro `am_michael`, speed 1.0 |
+| Pronunciation | `story.json` `pronounce` | a map from a word to how to say it, applied as whole words | none |
+| Spoken text for one moment | moment `say` | the text the narrator reads instead of the caption | the caption |
+| Modes | `story.json` `modes` | two or more modes for a contrast (before/after, A/B) | one mode, `main` |
+| No narration | `build`, `snapshots`, `video` `--no-voice` | build without the voice, keep sound cues | voice on |
+| Fragment | `build --fragment` | only the figure, to paste into another page | full page |
+| Figure size and colours | `snapshots`, `video` `--width`, `--scheme` | a width in pixels; `light` or `dark` | 1280 (GIF 960), `light` |
+| Video | `video --format`, `--mode`, `--fps`, `--out` | `mp4` or `gif`; a mode id; frames per second; a path | `mp4`, first mode, 30 (GIF 12), `dist/` |
+| Speech server | `narrate --url` | an OpenAI-compatible `/v1/audio/speech` endpoint, with `"engine": "http"` | none |
+
+Example of `pronounce`:
+
+```json
+"pronounce": { "nginx": "engine x", "SQL": "sequel" }
+```
+
 ## Voices
 
 The default voice is Kokoro `am_michael`. Change it per story:
