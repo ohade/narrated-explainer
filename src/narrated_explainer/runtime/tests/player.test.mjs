@@ -394,6 +394,101 @@ test('renderAt(): hold start, mid-hold, mid-travel and the end, on the plan time
   assert.equal(c.snapshot().at.kind, 'rest', 'renderAt does not move the live player');
 });
 
+// Speed above 1x: holds, the clip-release failsafe, motion and the voice run at `pace`; travel keeps
+// scaling with the speed itself, and speeds up to 1x leave holds and motion alone.
+const HOLD_STORY = {
+  timing: { end: 40, realMsPerUnit: 10, holdMs: 1600 },
+  moments: [{ id: 'a', t: 0, caption: 'A' }, { id: 'b', t: 30, caption: 'B' }],
+};
+function holding(speed, durations = {}) {
+  const c = NX._createController(HOLD_STORY, durations, { reduced: false });
+  c.setSpeed(speed, 0);
+  c.play(0);
+  return c;
+}
+
+test('at 2x a 1600 ms hold with no clip leaves at 800 ms', () => {
+  const c = holding(2);
+  assert.equal(c.nextEventAt(), 800);
+  c.tick(799);
+  assert.equal(c.snapshot().at.id, 'a');
+  c.tick(800);
+  assert.deepEqual(where(c), at('between', 0, null, 0, true));
+});
+
+test('at 2x a clip hold and its clip-release failsafe halve', () => {
+  const clip = { a: 1.0 };
+  assert.equal(holding(1, clip).nextEventAt(), 2500);
+  const c = holding(2, clip);
+  assert.equal(c.nextEventAt(), 1250);
+  c.tick(1249);
+  assert.equal(c.snapshot().at.id, 'a', 'the clip has not ended: waiting for it');
+  c.tick(1250);
+  assert.equal(c.snapshot().at.kind, 'between');
+  assert.equal(holding(2, { a: null }).nextEventAt(), 6000, 'unknown clip length: 12000 ms halved');
+});
+
+test('motion over 1000 ms reaches 1 at 500 ms at 2x', () => {
+  const c = holding(2);
+  assert.equal(c.motion(250, 1000), 0.5);
+  assert.equal(c.motion(500, 1000), 1);
+  assert.equal(holding(1).motion(500, 1000), 0.5);
+});
+
+test('at 0.5x holds, the clip failsafe and motion are those of 1x; travel takes twice as long', () => {
+  const c = holding(0.5, { a: 1.0 });
+  assert.equal(c.nextEventAt(), 2500);
+  assert.equal(c.motion(500, 1000), 0.5);
+  const d = holding(0.5);
+  assert.equal(d.nextEventAt(), 1600);
+  d.tick(1600);
+  assert.equal(d.nextEventAt(), 1600 + 30 * 10 / 0.5);
+  const e = holding(2);
+  e.tick(800);
+  assert.equal(e.nextEventAt(), 800 + 30 * 10 / 2, 'travel scales with the speed itself');
+});
+
+test('a speed change mid-hold rescales the rest of that hold', () => {
+  const up = holding(1);
+  up.tick(800);
+  up.setSpeed(2, 800);
+  assert.equal(up.nextEventAt(), 1200);
+  up.tick(1199);
+  assert.equal(up.snapshot().at.id, 'a');
+  up.tick(1200);
+  assert.equal(up.snapshot().at.kind, 'between');
+  const down = holding(2);
+  down.tick(400);
+  down.setSpeed(1, 400);
+  assert.equal(down.nextEventAt(), 1200);
+  const clip = holding(1, { a: 1.0 });
+  clip.setSpeed(2, 1000);
+  assert.equal(clip.nextEventAt(), 1750, 'the clip failsafe rescales too: 1000 + 1500 / 2');
+});
+
+test('a speed change mid-motion keeps the motion where it was', () => {
+  const c = holding(1);
+  assert.equal(c.motion(400, 1000), 0.4);
+  c.setSpeed(2, 400);
+  assert.equal(c.motion(400, 1000), 0.4);
+  assert.equal(c.motion(700, 1000), 1);
+});
+
+test('plan() and renderAt() give the same result at every speed', () => {
+  const results = [0.5, 1, 2].map((speed) => {
+    const c = make(DUR);
+    c.setSpeed(speed, 0);
+    const frame = c.renderAt('smooth', 6800);
+    return plain({
+      plan: c.plan('smooth'),
+      frame: { at: frame.at, t: frame.t, caption: frame.caption, playing: frame.playing, clipTime: frame.clipTime, motion: frame.motion(1000) },
+    });
+  });
+  assert.deepEqual(results[0], results[1]);
+  assert.deepEqual(results[2], results[1]);
+  assert.deepEqual(results[1].plan, SMOOTH_PLAN);
+});
+
 test('word index at a clip time is the last word that has started', () => {
   const words = [[0, 0.3], [0.3, 0.7], [0.9, 1.2]];
   assert.deepEqual([-0.1, 0, 0.5, 0.8, 1.0, 5].map((t) => NX._wordIndexAt(words, t)), [-1, 0, 1, 1, 2, 2]);
@@ -690,4 +785,44 @@ test('the Theme control still works when storage throws', () => {
   theme.click();
   assert.equal(figure.getAttribute('data-nx-theme'), 'light');
   assert.equal(byClass(figure, 'nx-play')[0].textContent, 'Play');
+});
+
+const speedSelect = (figure) => byClass(figure, 'nx-speed')[0];
+
+test('Speed is one native drop-down with six fixed options, 1x selected', () => {
+  const { figure } = mountFake();
+  assert.equal(byClass(figure, 'nx-speed').length, 1);
+  const select = speedSelect(figure);
+  assert.equal(select.tagName, 'SELECT');
+  const options = select.children.map((o) => [o.tagName, o.getAttribute('value'), o.textContent]);
+  assert.deepEqual(options, [
+    ['OPTION', '0.5', '0.5x'], ['OPTION', '0.75', '0.75x'], ['OPTION', '1', '1x'],
+    ['OPTION', '1.25', '1.25x'], ['OPTION', '1.5', '1.5x'], ['OPTION', '2', '2x'],
+  ], 'the fixture story lists timing.speeds [0.5, 1]; the player ignores it');
+  assert.equal(select.value, '1');
+  assert.equal(select.getAttribute('aria-label'), 'Speed');
+});
+
+test('choosing a speed sets the narration playbackRate to max(1, speed)', () => {
+  const { figure, audios } = mountFake();
+  byClass(figure, 'nx-play')[0].click();
+  const audio = audios[0];
+  const choose = (value) => { speedSelect(figure).value = value; speedSelect(figure).dispatch('change'); };
+  choose('2');
+  assert.equal(audio.playbackRate, 2);
+  choose('0.5');
+  assert.equal(audio.playbackRate, 1);
+  choose('1.5');
+  assert.equal(audio.playbackRate, 1.5);
+  byClass(figure, 'nx-next')[0].click(); // a new clip keeps the rate
+  assert.equal(audio.playbackRate, 1.5);
+});
+
+test('keyboard shortcuts do not fire while the speed select has focus', () => {
+  const { figure } = mountFake();
+  const voice = byClass(figure, 'nx-voice')[0];
+  figure.dispatch('keydown', { key: 'v', target: speedSelect(figure) });
+  assert.equal(voice.textContent, 'Voice: on');
+  figure.dispatch('keydown', { key: 'v' });
+  assert.equal(voice.textContent, 'Voice: off');
 });

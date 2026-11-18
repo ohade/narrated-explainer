@@ -4,7 +4,7 @@
   "description": "A parcel travels from a small shop, through a sorting centre, to your door before its two-day deadline runs out.",
   "lang": "en",
   "voice": { "engine": "kokoro", "voice": "af_heart", "speed": 1.0 },
-  "timing": { "end": 44, "unit": "h", "realMsPerUnit": 120, "holdMs": 1800, "speeds": [0.5, 1] },
+  "timing": { "end": 44, "unit": "h", "realMsPerUnit": 120, "holdMs": 1800 },
   "atRest": { "mode": "main", "t": 44, "caption": "Press Play to follow a parcel from the shop to your door." },
   "intro": [
     { "id": "promise", "caption": "The shop promises delivery within 48 hours, so it winds a stopwatch.", "sfx": "wind", "holdMs": 2600 },

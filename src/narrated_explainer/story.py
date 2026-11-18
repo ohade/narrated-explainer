@@ -43,9 +43,10 @@ def validate_story(story: object) -> list[str]:
             errors.append(f"timing.{key} has an invalid numeric value")
     if not _text(timing.get("unit")):
         errors.append("timing.unit must be text")
-    speeds = timing.get("speeds")
-    if not isinstance(speeds, list) or not speeds or not all(finite_number(speed, positive=True) for speed in speeds):
-        errors.append("timing.speeds must contain positive speeds")
+    if "speeds" in timing:  # optional and ignored by the player, which always offers its own six
+        speeds = timing["speeds"]
+        if not isinstance(speeds, list) or not speeds or not all(finite_number(speed, positive=True) for speed in speeds):
+            errors.append("timing.speeds must contain positive speeds")
     modes = story.get("modes", [{"id": "main", "label": "Main"}])
     mode_ids = []
     if not isinstance(modes, list) or not modes:

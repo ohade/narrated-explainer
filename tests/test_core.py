@@ -94,6 +94,16 @@ def test_valid_story(story):
     assert validate_story(story) == []
 
 
+def test_timing_speeds_are_optional_but_still_validated_when_given(story):
+    del story["timing"]["speeds"]
+    assert validate_story(story) == []
+    for bad in ([], [0], [-1], ["fast"], [True], 1):
+        story["timing"]["speeds"] = bad
+        assert validate_story(story) == ["timing.speeds must contain positive speeds"], bad
+    story["timing"]["speeds"] = [0.5, 1, 2]
+    assert validate_story(story) == []
+
+
 def test_cache_hash_verification_and_atomic_failure(tmp_path):
     source, target = tmp_path / "source", tmp_path / "model"
     source.write_bytes(b"verified model bytes")

@@ -137,14 +137,12 @@ def build(directory: Path, fragment: bool = False, no_voice: bool = False, resou
         output = ('<!doctype html><html lang="' + html.escape(story["lang"], quote=True) + '"><head>'
                   '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
                   + meta + '<title>' + html.escape(story["title"]) + '</title>'
-                  '<style>body.nx-page{padding:24px;font-family:system-ui,sans-serif;}'
+                  '<style>body.nx-page{padding:24px;}'
                   'body.nx-page>h1{color:var(--nx-ink);}'
-                  'body.nx-page>p,body.nx-page>footer{color:var(--nx-ink-2);}'
-                  'body.nx-page>footer{margin-top:24px;}'
-                  'body.nx-page>footer a{color:var(--nx-info-fg);}</style>'
+                  'body.nx-page>p{color:var(--nx-ink-2);}</style>'
                   '</head><body class="nx nx-page"><h1>'
                   + html.escape(story["title"]) + '</h1>' + description + figure
-                  + '<footer><a href="https://github.com/ohade/narrated-explainer">Made with Narrated Explainer</a></footer></body></html>')
+                  + '<footer class="nx-credit"><a href="https://github.com/ohade/narrated-explainer">Made with Narrated Explainer</a></footer></body></html>')
     errors = inspect_html(output)
     if errors:
         raise ValueError("Unsafe bundle: " + "; ".join(errors))

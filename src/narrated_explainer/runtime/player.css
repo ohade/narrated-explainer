@@ -19,6 +19,7 @@
   --nx-warn-bg: light-dark(#fcefd6, #3a2b10);
   --nx-stop-fg: light-dark(#a3282a, #f39d9d);
   --nx-stop-bg: light-dark(#fbe5e5, #3e1c1d);
+  --nx-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 .nx[data-nx-theme="light"] { color-scheme: light; }
 .nx[data-nx-theme="dark"] { color-scheme: dark; }
@@ -41,6 +42,7 @@
   overflow-x: clip;
   color: var(--nx-ink);
   background: var(--nx-page);
+  font-family: var(--nx-font);
   font-size: 18px;
   line-height: 1.45;
 }
@@ -81,12 +83,26 @@
   border-color: var(--nx-info-fg);
   font-weight: 700;
 }
-.nx button:focus-visible { outline: 3px solid var(--nx-info-fg); outline-offset: 2px; position: relative; z-index: 1; }
+.nx select {
+  font: inherit;
+  font-size: 18px;
+  line-height: 1.2;
+  min-height: 44px;
+  padding: 8px 10px;
+  color: var(--nx-ink);
+  background: var(--nx-sunken);
+  border: 1px solid var(--nx-edge);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.nx button:focus-visible, .nx select:focus-visible { outline: 3px solid var(--nx-info-fg); outline-offset: 2px; position: relative; z-index: 1; }
 .nx .nx-group button { border-radius: 0; }
 .nx .nx-group button:first-child { border-radius: 6px 0 0 6px; }
 .nx .nx-group button:last-child { border-radius: 0 6px 6px 0; }
 .nx .nx-group button + button { border-left-width: 0; }
 .nx .nx-voice-name { font-size: 16px; color: var(--nx-ink-2); }
+.nx .nx-credit { margin: 24px 0 0; font-size: 16px; color: var(--nx-ink-2); }
+.nx .nx-credit a { color: inherit; }
 
 /* Progress: one clickable marker per position. */
 .nx .nx-progress { display: flex; gap: 3px; margin-top: 8px; min-width: 0; }

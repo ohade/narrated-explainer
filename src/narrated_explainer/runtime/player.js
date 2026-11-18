@@ -25,6 +25,10 @@
 
   const finite = (v, fallback) => (typeof v === 'number' && isFinite(v) ? v : fallback);
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
+  // Above 1x the whole story speeds up (holds, the clip failsafe, motion, the voice); travel scales
+  // with the speed itself. At or below 1x only travel changes.
+  const paceOf = (speed) => Math.max(1, speed);
+  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
   function modeList(story) {
     return story.modes && story.modes.length ? story.modes : [{ id: 'main', label: 'Main' }];
@@ -107,11 +111,12 @@
       s.stepped = false;
       s.arrivedAt = now;
       s.last = now;
-      s.holdUntil = now + (s.reduced ? REDUCED_STEP_MS : finite(p.holdMs, baseHoldMs));
+      const pace = paceOf(s.speed);
+      s.holdUntil = now + (s.reduced ? REDUCED_STEP_MS : finite(p.holdMs, baseHoldMs)) / pace;
       setCue(p, p.sfx);
       s.clipPending = cue.clip;
       const ms = cue.clip ? clipMs(p.id) : null;
-      s.releaseAt = !cue.clip ? now : now + (ms === null ? UNKNOWN_CLIP_MS : ms + CLIP_GRACE_MS);
+      s.releaseAt = !cue.clip ? now : now + (ms === null ? UNKNOWN_CLIP_MS : ms + CLIP_GRACE_MS) / pace;
     }
 
     function finish() {
@@ -269,8 +274,16 @@
         s.index = lastPassed(s.t);
         s.last = now;
       },
-      setSpeed(speed) {
-        if (finite(speed, 0) > 0) s.speed = speed;
+      // `now` (optional) rescales what is left of a hold and of the current motion to the new pace.
+      setSpeed(speed, now) {
+        if (!(finite(speed, 0) > 0)) return;
+        const ratio = paceOf(s.speed) / paceOf(speed);
+        s.speed = speed;
+        if (now === undefined || !s.playing || !s.onPosition) return;
+        const rescale = (point) => now + (point - now) * ratio;
+        s.arrivedAt = rescale(s.arrivedAt);
+        s.holdUntil = rescale(s.holdUntil);
+        s.releaseAt = rescale(s.releaseAt);
       },
       setVoice(on) {
         s.voiceOn = Boolean(on);
@@ -281,7 +294,7 @@
       },
       motion(now, ms) {
         if (!s.playing || s.atRest || s.stepped || s.reduced || !(ms > 0)) return 1;
-        return clamp01((now - s.arrivedAt) / ms);
+        return clamp01((now - s.arrivedAt) * paceOf(s.speed) / ms);
       },
       sfxOnce(name) {
         if (!s.playing || s.sfxPlayed[name]) return false;
@@ -437,12 +450,13 @@
   // whenever that index may have changed.
   function createVoice(narration, controller) {
     const clips = narration ? narration.clips || {} : {};
-    const state = { audio: null, seq: 0, id: null };
+    const state = { audio: null, seq: 0, id: null, rate: 1 };
     const voice = {
       onWord: () => {},
       unlock() {
         if (state.audio || !narration) return;
         state.audio = new root.Audio();
+        state.audio.playbackRate = state.rate;
         const ended = () => {
           if (state.seq) controller.clipEnded(state.seq);
           state.seq = 0;
@@ -452,12 +466,18 @@
         state.audio.addEventListener('error', ended);
         state.audio.addEventListener('timeupdate', () => { if (!controller.snapshot().playing) voice.onWord(); });
       },
+      // Loading a clip resets the element's rate to its default, so play() sets it again.
+      setRate(rate) {
+        state.rate = rate;
+        if (state.audio) state.audio.playbackRate = rate;
+      },
       play(id, seq) {
         const clip = clips[id];
         if (!state.audio || !clip || !clip.src) { controller.clipEnded(seq); return; }
         state.seq = seq;
         state.id = id;
         state.audio.src = clip.src;
+        state.audio.playbackRate = state.rate;
         const started = state.audio.play();
         if (started && started.catch) {
           started.catch(() => { if (state.seq === seq) { state.seq = 0; controller.clipEnded(seq); } });
@@ -507,7 +527,6 @@
     const scene = factory(story, NX.kit || {});
     const labels = Object.assign({}, DEFAULT_LABELS, story.labels || {});
     const modes = modeList(story);
-    const speeds = (story.timing && story.timing.speeds) || [0.5, 1];
     const uid = 'nx-' + (story.id || 'story') + '-' + (NX.players.length + 1);
     const ui = { soundOn: true, frameRequest: 0, lastCue: 0, captionKey: '', wordSpans: [], word: -1 };
 
@@ -535,12 +554,9 @@
     const restartButton = button(controls, 'nx-restart', labels.restart);
     const prevButton = button(controls, 'nx-prev', labels.prev);
     const nextButton = button(controls, 'nx-next', labels.next);
-    const speedGroup = controls.appendChild(h(doc, 'div', { class: 'nx-group', role: 'group', 'aria-label': labels.speed }));
-    const speedButtons = speeds.map((v) => {
-      const b = button(speedGroup, 'nx-speed', v + '×', { 'aria-pressed': String(v === 1) });
-      b.addEventListener('click', () => { c.setSpeed(v); renderControls(c.snapshot()); });
-      return [v, b];
-    });
+    const speedSelect = controls.appendChild(h(doc, 'select', { class: 'nx-speed', 'aria-label': labels.speed }));
+    SPEEDS.forEach((v) => speedSelect.appendChild(h(doc, 'option', { value: String(v) }, v + 'x')));
+    speedSelect.value = '1';
     const voiceButton = button(controls, 'nx-voice', labels.voiceOn, { 'aria-pressed': 'true' });
     const voiceName = controls.appendChild(h(doc, 'span', { class: 'nx-voice-name' }, narration ? narration.label || '' : ''));
     if (!narration) { voiceButton.hidden = true; voiceName.hidden = true; }
@@ -621,7 +637,6 @@
     function renderControls(snap) {
       playButton.textContent = snap.playing ? labels.pause : labels.play;
       modeButtons.forEach(([id, b]) => b.setAttribute('aria-pressed', String(id === snap.mode)));
-      speedButtons.forEach(([v, b]) => b.setAttribute('aria-pressed', String(v === snap.speed)));
       voiceButton.textContent = snap.voiceOn ? labels.voiceOn : labels.voiceOff;
       voiceButton.setAttribute('aria-pressed', String(snap.voiceOn));
       soundButton.textContent = ui.soundOn ? labels.soundOn : labels.soundOff;
@@ -692,6 +707,11 @@
       c.setMode(id, clock());
       buildLists();
       update();
+    }
+    function selectSpeed(speed) {
+      unlock();
+      c.setSpeed(speed, clock());
+      voice.setRate(paceOf(c.snapshot().speed));
     }
     function toggleVoice() {
       unlock();
@@ -769,6 +789,7 @@
     restartButton.addEventListener('click', restart);
     prevButton.addEventListener('click', () => step(-1));
     nextButton.addEventListener('click', () => step(1));
+    speedSelect.addEventListener('change', () => selectSpeed(Number(speedSelect.value)));
     voiceButton.addEventListener('click', toggleVoice);
     soundButton.addEventListener('click', toggleSound);
     transcriptButton.addEventListener('click', toggleTranscript);
