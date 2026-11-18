@@ -249,6 +249,8 @@ def test_the_chips_and_the_panel_do_not_move_the_stage(folder):
         without_chip = live.page.evaluate(BOXES_JS)["stage"]
     assert with_chip is not None and with_chip == without_chip
     with layout.LivePage(folder / "dist/asides.html", 1280, 720) as live:
+        chips_are(live, ["always"])  # the chip is under the stage now: let the page settle so the click never has to scroll to it
+        settle(live)
         before = live.page.evaluate(BOXES_JS)["stage"]
         live.page.click('figure.nx [data-aside="always"]')
         live.page.wait_for_selector("figure.nx .nx-aside-panel", state="visible", timeout=2500)
@@ -274,10 +276,12 @@ def test_the_layout_check_passes_for_the_fixture(folder):
     assert not any("three" in warning for warning in warnings), warnings
 
 
-def test_the_layout_check_reports_a_rail_or_a_panel_outside_the_stage(folder):
+def test_the_layout_check_reports_a_strip_outside_the_figure_a_chip_over_the_stage_or_a_panel_outside_the_stage(folder):
     page = folder / "dist/asides.html"
     wide = layout.inspect_layout(page, css="figure.nx .nx-asides { width: 5000px !important; max-width: none !important; }")[0]
-    assert any("chip rail" in error and "outside the stage" in error and error.startswith("asides.html: 1280x720") for error in wide), wide[:3]
+    assert any("chip strip" in error and "outside the figure" in error and error.startswith("asides.html: 1280x720") for error in wide), wide[:3]
+    over = layout.inspect_layout(page, css="figure.nx .nx-asides { margin-top: -400px !important; }")[0]
+    assert any("a chip overlaps the stage" in error and error.startswith("asides.html: 1280x720") for error in over), over[:3]
     tall = layout.inspect_layout(page, css="figure.nx .nx-aside-card { min-height: 9000px !important; }")[0]
     assert any("aside always" in error and "panel" in error and "outside the stage" in error for error in tall), tall[:3]
     assert any("390x844" in error and "aside timed" in error for error in tall), "the 390 px window is measured too"
@@ -315,10 +319,10 @@ def test_snapshots_open_each_panel_at_a_frame_that_offers_its_aside(folder, monk
     assert opened == {"timed": ("a", 3, "full"), "late": ("a", 5, "full"), "tour": ("a", 2, "full"), "always": ("a", 0, "full")}, opened
 
 
-def test_capture_never_shows_the_chip_rail(folder):
+def test_capture_never_shows_the_chip_strip(folder):
     with capture.Capture(folder / "dist/asides.html") as browser:
-        display = browser.page.evaluate("""() => { const rail = document.querySelector('figure.nx .nx-asides');
-          return rail ? getComputedStyle(rail).display : 'missing'; }""")
+        display = browser.page.evaluate("""() => { const strip = document.querySelector('figure.nx .nx-asides');
+          return strip ? getComputedStyle(strip).display : 'missing'; }""")
     assert display == "none"
 
 
@@ -330,3 +334,87 @@ def test_snapshots_write_one_picture_per_aside_with_its_panel_open(folder):
     sizes = {name: (folder / "dist/snapshots" / name).stat().st_size for name in names}
     assert all(sizes[f"aside-{identifier}.png"] > 1000 for identifier in ASIDE_IDS)
     assert len({(folder / "dist/snapshots" / f"aside-{identifier}.png").read_bytes() for identifier in ASIDE_IDS}) == len(ASIDE_IDS)
+
+
+# --- the chip strip under the stage ---------------------------------------------------------------
+
+RACE = Path(__file__).resolve().parent.parent / "examples" / "deadline-race"
+STRIP_JS = """() => {
+  const rect = (el) => { const box = el.getBoundingClientRect(); return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height }; };
+  const figure = document.querySelector('figure.nx');
+  const shown = [...figure.querySelectorAll('.nx-aside-chip')].filter((el) => getComputedStyle(el).display !== 'none');
+  const strip = figure.querySelector('.nx-asides');
+  return { stage: rect(figure.querySelector('.nx-stage')), strip: rect(strip), caption: rect(figure.querySelector('figcaption')),
+           figure: rect(figure), chips: shown.map((el) => ({ id: el.dataset.aside, title: el.title, box: rect(el),
+             truncated: el.querySelector('.nx-aside-text').scrollWidth > el.querySelector('.nx-aside-text').clientWidth })),
+           sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+}"""
+
+
+@pytest.fixture(scope="module")
+def race(tmp_path_factory):
+    copy_of = tmp_path_factory.mktemp("race") / "deadline-race"
+    shutil.copytree(RACE, copy_of)
+    build(copy_of, no_voice=True)
+    return copy_of / "dist/deadline-race.html"
+
+
+def at_queue(live) -> dict:
+    """Shows the chips of the queue step the way a viewer sees them (the deepest level, mode before) and measures."""
+    index = live.page.evaluate("""() => NarratedExplainer.players[0].positions('before', 'deep-dive').findIndex((p) => p.id === 'queue')""")
+    live.page.evaluate("(index) => NarratedExplainer.players[0].showAsides('before', index, 'deep-dive')", index)
+    live.page.wait_for_function("() => document.querySelectorAll('figure.nx .nx-aside-chip:not(.nx-aside-off)').length === 2")
+    settle(live)
+    return live.page.evaluate(STRIP_JS)
+
+
+def overlap(first: dict, second: dict) -> float:
+    across = min(first["right"], second["right"]) - max(first["left"], second["left"])
+    down = min(first["bottom"], second["bottom"]) - max(first["top"], second["top"])
+    return across * down if across > 0 and down > 0 else 0
+
+
+@pytest.mark.parametrize("width,height", [(1280, 720), (390, 844)])
+def test_no_chip_covers_the_scene_and_the_strip_sits_between_stage_and_caption(race, width, height):
+    with layout.LivePage(race, width, height) as live:
+        measured = at_queue(live)
+        live.check_errors()
+    assert [chip["id"] for chip in measured["chips"]] == ["why-the-queue", "what-is-tmax"], measured["chips"]
+    for chip in measured["chips"]:
+        assert overlap(chip["box"], measured["stage"]) == 0, (chip["id"], chip["box"], measured["stage"])
+    strip = measured["strip"]
+    assert strip["top"] >= measured["stage"]["bottom"] - 1 and strip["bottom"] <= measured["caption"]["top"] + 1, measured
+    assert strip["left"] >= measured["figure"]["left"] - 1 and strip["right"] <= measured["figure"]["right"] + 1, measured
+    assert measured["sideways"] <= 0, "the page never scrolls sideways"
+
+
+def test_the_strip_keeps_its_height_and_the_stage_and_caption_stay_put_as_chips_come_and_go(race):
+    with layout.LivePage(race, 1280, 720) as live:
+        rest = live.page.evaluate(STRIP_JS)
+        two = at_queue(live)
+        live.page.add_style_tag(content="figure.nx .nx-aside-chip { display: none !important; }")
+        settle(live)  # a chip's display change is a transition; let it end before measuring
+        empty = live.page.evaluate(STRIP_JS)
+    assert not empty["chips"] and len(two["chips"]) == 2, (empty["chips"], two["chips"])
+    for part in ("strip", "stage", "caption"):
+        assert empty[part] == two[part], (part, empty[part], two[part])
+    assert two["strip"]["height"] >= 44, "one chip row fits"
+    assert rest["strip"]["height"] == two["strip"]["height"], (rest["strip"], two["strip"])
+    assert rest["stage"]["height"] == two["stage"]["height"] and rest["stage"]["width"] == two["stage"]["width"]
+
+
+def test_a_chip_is_one_truncated_line_with_the_whole_blurb_in_its_title(race):
+    with layout.LivePage(race, 390, 844) as live:
+        measured = at_queue(live)
+    first = measured["chips"][0]
+    assert first["truncated"], first
+    assert first["box"]["height"] <= 52, first["box"]
+    assert first["title"].endswith("Why a busy Gateway makes a request wait before any partner is asked."), first["title"]
+
+
+def test_the_strip_scrolls_inside_itself_when_the_chips_do_not_fit_the_width(race):
+    with layout.LivePage(race, 390, 844) as live:
+        at_queue(live)
+        scrolls = live.page.evaluate("""() => { const strip = document.querySelector('figure.nx .nx-asides');
+          return { wide: strip.scrollWidth > strip.clientWidth, overflowX: getComputedStyle(strip).overflowX }; }""")
+    assert scrolls == {"wide": True, "overflowX": "auto"}, scrolls

@@ -23,8 +23,11 @@ figure.nx .nx-controls, figure.nx .nx-group {
 """
 # Stage width at After step 1, light scheme, under FONT_NEUTRAL_CSS with the transcript closed. Measured on
 # the fit before the no-reflow change (939bfef) and on this one, identical on macOS and on Linux with DejaVu Sans.
-WIDTHS = {(1280, 720): 589, (1440, 900): 793, (1920, 1080): 997,
-          (2000, 1174): 1103, (2560, 1440): 1404, (390, 844): 342}
+# The deadline-race story has asides, so its 56 px chip strip (plus 8 px margin) sits under the stage: 72 px narrower
+# than the first measurement where the height limits the stage (the 390 px window is width-limited). Re-measured on
+# macOS only; the Linux match is not re-checked.
+WIDTHS = {(1280, 720): 517, (1440, 900): 721, (1920, 1080): 924,
+          (2000, 1174): 1031, (2560, 1440): 1332, (390, 844): 342}
 
 
 def built(tmp_path_factory, fragment: bool) -> Path:

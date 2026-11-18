@@ -46,9 +46,10 @@ MEASURE_JS = """() => {
   }
   return cases;
 }"""
-# Where the chip rail and every aside panel sit against the stage, per mode, level and position, as the viewer
-# sees them. Arrival animations are finished and the chips' fade is switched off, so a chip that has just
-# left takes no space and none is measured mid-pop.
+# Where the chip strip and every aside panel sit, per mode, level and position, as the viewer sees them: the
+# strip against the figure's width, each offered chip against the stage (a chip must not cover the scene) and
+# each panel inside the stage. Arrival animations are finished and the chips' fade is switched off, so a chip
+# that has just left takes no space and none is measured mid-pop.
 ASIDES_JS = """() => {
   const player = NarratedExplainer.players[0];
   const figure = player.figure;
@@ -59,8 +60,13 @@ ASIDES_JS = """() => {
   const past = (el, box) => { const r = el.getBoundingClientRect();
     return Math.max(0, box.left - r.left, r.right - box.right, box.top - r.top, r.bottom - box.bottom); };
   const stage = () => figure.querySelector('.nx-stage').getBoundingClientRect();
+  const beside = (el, box) => { const r = el.getBoundingClientRect(); return Math.max(0, box.left - r.left, r.right - box.right); };
+  const covered = (el, box) => { const r = el.getBoundingClientRect();
+    const across = Math.min(r.right, box.right) - Math.max(r.left, box.left);
+    const down = Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top);
+    return across > 0 && down > 0 ? Math.min(across, down) : 0; };
   const settle = () => document.getAnimations().forEach((animation) => animation.finish());
-  const rails = [];
+  const strips = [];
   const panels = [];
   const wanted = new Set(player.story.asides.map((a) => a.id));
   for (const mode of modes) for (const level of levels) {
@@ -68,9 +74,9 @@ ASIDES_JS = """() => {
       const offered = player.asidesAt(mode, index, level);
       player.showAsides(mode, index, level);
       settle();
-      const rail = figure.querySelector('.nx-asides');
-      if (offered.length) rails.push({ mode, level, index, past: Math.max(past(rail, stage()),
-        ...offered.map((id) => past(figure.querySelector('.nx-aside-chip[data-aside="' + id + '"]'), stage()))) });
+      const strip = figure.querySelector('.nx-asides');
+      if (offered.length) strips.push({ mode, level, index, past: beside(strip, figure.getBoundingClientRect()),
+        over: Math.max(...offered.map((id) => covered(figure.querySelector('.nx-aside-chip[data-aside="' + id + '"]'), stage()))) });
       for (const id of offered) if (wanted.delete(id)) {
         player.showAsides(mode, index, level, id);
         settle();
@@ -79,7 +85,7 @@ ASIDES_JS = """() => {
     });
   }
   calm.remove();
-  return { rails, panels };
+  return { strips, panels };
 }"""
 FRAME_JS = "() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))"
 
@@ -130,7 +136,7 @@ class LivePage(Capture):
         return cases
 
     def measure_asides(self) -> dict:
-        """The overflow of the chip rail at each position that offers an aside, and of each aside's panel."""
+        """The fit of the chip strip at each position that offers an aside, and of each aside's panel."""
         measured = self.page.evaluate(ASIDES_JS)
         self.check_errors()
         return measured
@@ -140,9 +146,15 @@ SMALL_TEXT_PX = 11
 
 
 def _aside_overflow_errors(measured: dict, prefix: str) -> list[str]:
-    """Errors for a chip rail or an aside panel that extends outside the stage."""
-    errors = [f"{prefix}, mode {rail['mode']}, step {rail['index'] + 1}: the chip rail extends {round(rail['past'] + 0.49)}px outside the stage"
-              + (f" at level {rail['level']}" if rail["level"] else "") for rail in measured["rails"] if rail["past"] > 0.5]
+    """Errors for a chip strip wider than the figure, a chip over the stage, or an aside panel outside the stage."""
+    errors = []
+    for strip in measured["strips"]:
+        where = f"{prefix}, mode {strip['mode']}, step {strip['index'] + 1}"
+        at_level = f" at level {strip['level']}" if strip["level"] else ""
+        if strip["past"] > 0.5:
+            errors.append(f"{where}: the chip strip extends {round(strip['past'] + 0.49)}px outside the figure{at_level}")
+        if strip["over"] > 0.5:
+            errors.append(f"{where}: a chip overlaps the stage by {round(strip['over'] + 0.49)}px{at_level}")
     return errors + [f"{prefix}: aside {panel['id']} panel extends {round(panel['past'] + 0.49)}px outside the stage"
                      for panel in measured["panels"] if panel["past"] > 0.5]
 

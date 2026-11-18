@@ -645,17 +645,20 @@
     };
   }
 
-  // Asides: the chip rail over the stage and the panel a chip opens. It only builds and shows elements;
+  // Asides: the chip strip under the stage and the panel a chip opens over it. It only builds and shows elements;
   // `actions` (open, close, pop) are the player's. Every declared aside has a chip, shown or put away by render().
+  // A chip is one line (icon, bold label, blurb); the title holds the whole text for when the line is cut short.
   function createAsideUi(doc, labels, asides, uid, actions) {
-    const rail = h(doc, 'div', { class: 'nx-asides', role: 'group', 'aria-label': labels.learnMore });
+    const strip = h(doc, 'div', { class: 'nx-asides', role: 'group', 'aria-label': labels.learnMore });
     const chips = asides.map((aside) => {
-      const button = rail.appendChild(h(doc, 'button', {
-        type: 'button', class: 'nx-aside-chip nx-aside-off', 'data-aside': aside.id, title: labels.learnMore + ': ' + aside.label,
+      const button = strip.appendChild(h(doc, 'button', {
+        type: 'button', class: 'nx-aside-chip nx-aside-off', 'data-aside': aside.id,
+        title: labels.learnMore + ': ' + aside.label + '. ' + aside.blurb,
       }));
       button.appendChild(h(doc, 'span', { class: 'nx-aside-icon', 'aria-hidden': 'true' }));
       const text = button.appendChild(h(doc, 'span', { class: 'nx-aside-text' }));
       text.appendChild(h(doc, 'span', { class: 'nx-aside-label' }, aside.label));
+      text.appendChild(doc.createTextNode(' '));
       text.appendChild(h(doc, 'span', { class: 'nx-aside-blurb' }, aside.blurb));
       button.addEventListener('click', () => actions.open(aside.id));
       return { aside, button, shown: false };
@@ -687,7 +690,7 @@
     };
     let open = null;
     return {
-      rail,
+      strip,
       panel,
       // Shows the chips of the asides in `shownIds` and, when `openId` is not null, that aside's panel.
       render(shownIds, openId) {
@@ -816,6 +819,8 @@
     const themeButton = button(menu, 'nx-theme', labels.themeAuto);
     const progress = bar.appendChild(h(doc, 'div', { class: 'nx-progress' }));
     const stage = figure.appendChild(h(doc, 'div', { class: 'nx-stage' }));
+    // The strip comes right after the stage: above the transcript and the caption, never over the scene.
+    if (asideUi) figure.appendChild(asideUi.strip);
     // The figcaption is the figure's last child (HTML content model), so the transcript comes first.
     const transcript = figure.appendChild(h(doc, 'div', { class: 'nx-transcript', id: uid + '-transcript' }));
     transcript.hidden = true;
@@ -823,7 +828,7 @@
     const captionEl = figure.appendChild(h(doc, 'figcaption', { class: 'nx-caption', 'aria-live': 'polite', id: uid + '-caption' }));
     scene.build(stage);
     if (depthUi) { stage.appendChild(depthUi.menu); stage.appendChild(depthUi.end); }
-    if (asideUi) { stage.appendChild(asideUi.rail); stage.appendChild(asideUi.panel); }
+    if (asideUi) stage.appendChild(asideUi.panel);
 
     let markers = [];
     let transcriptItems = [];
@@ -1088,9 +1093,9 @@
     // view shows title through caption; otherwise it fits with the figure's top at the window's top.
     // Fullscreen uses the same rule inside the figure. It is measured without changing the layout,
     // so a reader's scroll position never moves, and from the window and the content only, never from
-    // the stage's fitted size: the space below the stage is the caption with its margins and the
-    // figure's bottom padding and border, so the transcript never counts and opening it does not
-    // shrink the stage; the height per pixel of width is each svg's own aspect ratio, plus any fixed
+    // the stage's fitted size: the space below the stage is the aside strip, if the story has asides,
+    // and the caption with their margins and the figure's bottom padding and border, so the transcript
+    // never counts and opening it does not shrink the stage; the height per pixel of width is each svg's own aspect ratio, plus any fixed
     // space between them. It never narrows below MIN_STAGE px or its natural width.
     const standalone = Boolean(doc.body && doc.body.classList.contains('nx-page'));
     function fit() {
@@ -1100,8 +1105,13 @@
       if (!box.width || !box.height) return;
       const px = (el, property) => parseFloat(root.getComputedStyle(el)[property]) || 0;
       const natural = figure.clientWidth - px(figure, 'paddingLeft') - px(figure, 'paddingRight');
-      const gap = Math.max(px(stage, 'marginBottom'), px(captionEl, 'marginTop'));
-      const below = gap + captionEl.getBoundingClientRect().height + px(captionEl, 'marginBottom') +
+      const underStage = asideUi ? asideUi.strip : captionEl;
+      const gap = Math.max(px(stage, 'marginBottom'), px(underStage, 'marginTop'));
+      // The strip, when there is one, sits between the stage and the caption at a fixed height.
+      const stripSpace = asideUi
+        ? asideUi.strip.getBoundingClientRect().height + Math.max(px(asideUi.strip, 'marginBottom'), px(captionEl, 'marginTop'))
+        : 0;
+      const below = gap + stripSpace + captionEl.getBoundingClientRect().height + px(captionEl, 'marginBottom') +
         px(figure, 'paddingBottom') + px(figure, 'borderBottomWidth');
       const svgs = Array.from(stage.querySelectorAll('svg'), (svg) => svg.getBoundingClientRect()).filter((r) => r.width);
       const perWidth = svgs.reduce((sum, r) => sum + r.height / r.width, 0);
@@ -1162,7 +1172,7 @@
       }
       // The select, the More widget and the depth cards keep their own keys (Space opens the menu, letters pick items).
       const inDepth = depthUi && (depthUi.menu.contains(event.target) || depthUi.end.contains(event.target));
-      const inAside = asideUi && (asideUi.rail.contains(event.target) || asideUi.panel.contains(event.target));
+      const inAside = asideUi && (asideUi.strip.contains(event.target) || asideUi.panel.contains(event.target));
       if (isTypingTarget(event.target) || more.contains(event.target) || inDepth || inAside) return;
       const action = keyAction(event);
       if (!action) return;

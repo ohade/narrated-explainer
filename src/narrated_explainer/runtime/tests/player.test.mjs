@@ -1351,10 +1351,8 @@ test('asides: a story without asides has no rail, no chips and no panel', () => 
   assert.equal(byClass(emptied.figure, 'nx-asides').length, 0);
 });
 
-test('asides: the chips follow the position as the viewer steps, and the rail sits inside the stage', () => {
+test('asides: the chips follow the position as the viewer steps', () => {
   const { figure } = mountAsides(ASIDES.slice(0, 3));
-  const stage = required(byClass(figure, 'nx-stage')[0], 'the stage');
-  assert.ok(stage.contains(required(byClass(figure, 'nx-asides')[0], 'a rail')), 'the rail is inside the stage');
   assert.deepEqual(shownChips(figure), ['always'], 'at rest only the untimed aside');
   const seenAt = [];
   for (let i = 0; i < 5; i += 1) { byClass(figure, 'nx-next')[0].click(); seenAt.push(shownChips(figure)); }
@@ -1384,13 +1382,13 @@ test('asides: a chip shows an icon, the label and the blurb, and is a button nam
   const chip = chipFor(figure, 'always');
   assert.equal(chip.tagName, 'BUTTON');
   assert.equal(chip.getAttribute('type'), 'button');
-  assert.equal(chip.getAttribute('title'), 'Learn more: Always');
+  assert.equal(chip.getAttribute('title'), 'Learn more: Always. Always there.', 'the title holds the label and the whole blurb');
   assert.equal(byClass(chip, 'nx-aside-icon').length, 1);
   assert.equal(byClass(chip, 'nx-aside-label')[0].textContent, 'Always');
   assert.equal(byClass(chip, 'nx-aside-blurb')[0].textContent, 'Always there.');
   const german = mountAsides(ASIDES.slice(2, 3), { storyOverride: { ...story, asides: ASIDES.slice(2, 3), labels: { learnMore: 'Mehr erfahren', close: 'Schliessen' } } });
   assert.equal(byClass(german.figure, 'nx-asides')[0].getAttribute('aria-label'), 'Mehr erfahren');
-  assert.equal(chipFor(german.figure, 'always').getAttribute('title'), 'Mehr erfahren: Always');
+  assert.equal(chipFor(german.figure, 'always').getAttribute('title'), 'Mehr erfahren: Always. Always there.');
   assert.equal(closeOf(german.figure).textContent, 'Schliessen');
   assert.equal(closeOf(figure).textContent, 'Close');
 });
@@ -1565,4 +1563,39 @@ test('asides: css lets chips and cards lift on hover and focus, and nothing move
   const reduced = css.slice(css.indexOf('prefers-reduced-motion'));
   for (const needle of ['.nx-aside-chip', '.nx-depth-card:focus-visible', '.nx-aside-chip:focus-visible']) assert.ok(reduced.includes(needle), needle + ' is calmed under reduced motion');
   assert.ok(/\.nx \.nx-aside-panel/.test(css) && /\.nx \.nx-aside-body\s*\{[^}]*overflow:\s*auto/.test(css), 'the panel body scrolls inside itself');
+});
+
+test('asides: the chips sit in one strip in the figure, under the stage and above the caption', () => {
+  const { figure } = mountAsides(ASIDES.slice(0, 3));
+  const strip = required(byClass(figure, 'nx-asides')[0], 'a strip');
+  const stage = required(byClass(figure, 'nx-stage')[0], 'the stage');
+  const caption = required(byClass(figure, 'nx-caption')[0], 'the caption');
+  assert.equal(strip.parentNode, figure, 'the strip is a child of the figure');
+  assert.equal(stage.contains(strip), false, 'the strip is not inside the stage, so it never covers the scene');
+  const order = [stage, strip, caption].map((node) => figure.children.indexOf(node));
+  assert.ok(order[0] >= 0 && order[0] < order[1] && order[1] < order[2], 'stage, strip, caption in that order: ' + order);
+  assert.equal(chipEls(figure).every((chip) => chip.parentNode === strip), true, 'every chip is in the strip');
+  assert.equal(strip.getAttribute('aria-label'), 'Learn more');
+});
+
+test('asides: a chip reads as one line, the label then the blurb, with a space between them', () => {
+  const { figure } = mountAsides(ASIDES.slice(0, 3));
+  const text = byClass(chipFor(figure, 'always'), 'nx-aside-text')[0];
+  assert.equal(text.textContent, 'Always Always there.');
+});
+
+test('asides: css makes the strip a fixed-height scroller in the flow and each chip one truncated line', () => {
+  const css = read('player.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = (selector) => {
+    const found = new RegExp('(?:^|\\})\\s*' + selector.replace(/[.]/g, '\\.') + '\\s*\\{([^}]*)\\}').exec(css);
+    return found ? found[1] : '';
+  };
+  const strip = rule('.nx .nx-asides');
+  assert.ok(strip, 'a rule for the strip');
+  assert.ok(!/position:\s*absolute/.test(strip), 'the strip is in the flow, not an overlay');
+  assert.ok(/(?:^|[;\s])height:\s*\d+px/.test(strip), 'a fixed height, so chips coming and going never move the stage or the caption');
+  assert.ok(/overflow-x:\s*auto/.test(strip), 'it scrolls sideways inside itself');
+  const text = rule('.nx .nx-aside-text');
+  assert.ok(/white-space:\s*nowrap/.test(text) && /text-overflow:\s*ellipsis/.test(text) && /overflow:\s*hidden/.test(text), 'one line, cut with an ellipsis');
+  assert.ok(/flex:\s*none|flex:\s*0 0 auto/.test(rule('.nx .nx-aside-chip')), 'a chip keeps its width, so the strip scrolls when three do not fit');
 });
