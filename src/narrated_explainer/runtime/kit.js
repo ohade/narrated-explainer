@@ -41,6 +41,13 @@
     },
   };
 
+  // A sway that dies out: it swings about zero and is still again at p = 1.
+  const wobble = (p, amp) => Math.sin(p * Math.PI * 7) * amp * (1 - p);
+  // The point at progress p on the way from `from` to `to`, lifted by `lift` at the middle (up on screen).
+  const arc = (from, to, p, lift) => [lerp(from[0], to[0], p), lerp(from[1], to[1], p) - lift * Math.sin(Math.PI * p)];
+  // The height scale of a landing: it dips by `depth` halfway between `from` and 1, and is whole again at 1.
+  const squash = (p, depth = 0.22, from = 0.8) => 1 - depth * Math.sin(Math.PI * ramp(p, from, 1));
+
   // ---- Tones ----
   // A fill tone is an accent (info, ok, warn, stop: its strong -fg colour), an explicit
   // '<tone>-fg' or '<tone>-bg', or a neutral: ink and ink-2 (strong), sunken (soft), page.
@@ -84,6 +91,11 @@
   // Approximate width of a label at 18 units, since nodes are not measured.
   const labelWidth = (s) => String(s).length * 10.5 + 24;
   const withUnit = (value, unit) => num(value) + (unit ? ' ' + unit : '');
+  // Moves a group to (x, y); a scale is added when given, and a rotation about (x, y) when not zero.
+  const place = (node, x, y, s, r) => node.setAttribute('transform', 'translate(' + pt([x, y]) + ')'
+    + (s == null ? '' : ' scale(' + num(s) + ')') + (r ? ' rotate(' + num(r) + ')' : ''));
+  // The class pair of a soft body: a pale fill with an accent outline.
+  const bodyClass = (tone) => fillClass(tone + '-bg') + ' ' + strokeClass(tone);
 
   function svg(stage, viewBox, label) {
     return el(stage, 'svg', {
@@ -502,8 +514,354 @@
     return { show: (on) => show(g, on), pop };
   }
 
+  // ---- Characters ----
+
+  // What each mood draws: which eyes, whether the brows show, and the mouth (open mouths are filled).
+  const MOODS = {
+    calm: { eyes: 'open', mouth: 'M-14 14 Q0 24 14 14', open: false },
+    busy: { eyes: 'open', mouth: 'M-7 12 Q0 4 7 12 Q0 24 -7 12 Z', open: true },
+    worried: { eyes: 'open', brows: true, mouth: 'M-14 20 Q-7 11 0 20 Q7 29 14 20', open: false },
+    stopped: { eyes: 'x', mouth: 'M-14 22 Q0 8 14 22', open: false },
+    happy: { eyes: 'happy', mouth: 'M-16 10 Q0 30 16 10 Z', open: true },
+  };
+
+  // A face drawn around (x, y), about 60 units wide at scale 1. set(mood): calm, busy, worried, stopped, happy.
+  function face(parent, opts) {
+    const o = withDefaults(opts, { x: 0, y: 0, scale: 1 });
+    const g = el(parent, 'g', { 'data-part': 'face' });
+    place(g, o.x, o.y, o.scale);
+    const eyes = el(g, 'g', { 'data-part': 'face-eyes' });
+    [-20, 20].forEach((ex) => {
+      el(eyes, 'circle', { cx: ex, cy: -6, r: 10, class: 'nx-fill-page nx-stroke-ink', 'stroke-width': 2 });
+      el(eyes, 'circle', { cx: ex + 2, cy: -5, r: 4.5, class: 'nx-fill-ink-fg' });
+    });
+    const stroke = { fill: 'none', class: 'nx-stroke-ink', 'stroke-linecap': 'round' };
+    const cross = el(g, 'path', Object.assign({ d: 'M-27 -13 L-13 1 M-13 -13 L-27 1 M13 -13 L27 1 M27 -13 L13 1', 'stroke-width': 3, 'data-part': 'face-cross' }, stroke));
+    const glad = el(g, 'path', Object.assign({ d: 'M-28 -2 Q-20 -16 -12 -2 M12 -2 Q20 -16 28 -2', 'stroke-width': 3.5, 'data-part': 'face-glad' }, stroke));
+    const brows = el(g, 'path', Object.assign({ d: 'M-30 -19 L-12 -25 M30 -19 L12 -25', 'stroke-width': 3, 'data-part': 'face-brows' }, stroke));
+    const mouth = el(g, 'path', { fill: 'none', 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'data-part': 'face-mouth' });
+    return {
+      g,
+      set(mood) {
+        const look = MOODS[mood];
+        show(eyes, look.eyes === 'open');
+        show(cross, look.eyes === 'x');
+        show(glad, look.eyes === 'happy');
+        show(brows, Boolean(look.brows));
+        mouth.setAttribute('d', look.mouth);
+        mouth.setAttribute('class', look.open ? 'nx-fill-ink-fg nx-stroke-ink' : 'nx-stroke-ink');
+      },
+    };
+  }
+
+  // A small server (130 x 70) with two lights: set({tone, mood, lights}) tints its body, picks its
+  // face and lights one lamp (lights true) or the other.
+  function serverParts(g) {
+    [-38, 38].forEach((lx) => el(g, 'rect', { x: lx - 8, y: 30, width: 16, height: 10, rx: 3, class: 'nx-fill-ink-2-fg' }));
+    const body = el(g, 'rect', { x: -65, y: -35, width: 130, height: 70, rx: 14, 'stroke-width': 3, 'data-part': 'character-body' });
+    const lamps = [48, 32].map((cx, i) => el(g, 'circle', { cx, cy: -20, r: 5, 'data-part': 'character-led-' + i }));
+    el(g, 'line', { x1: -50, y1: -21, x2: -26, y2: -21, class: 'nx-stroke-hairline', 'stroke-width': 4, 'stroke-linecap': 'round' });
+    const f = face(g, { x: -8, y: 6, scale: 0.8 });
+    return (s) => {
+      body.setAttribute('class', bodyClass(s.tone));
+      f.set(s.mood);
+      lamps[0].setAttribute('class', fillClass((s.lights ? s.tone : 'ink-2') + '-fg'));
+      lamps[1].setAttribute('class', fillClass((s.lights ? 'ink-2' : s.tone) + '-fg'));
+    };
+  }
+
+  // A small screen (140 x 80) with an antenna bulb in the tone and a sweat drop when worried:
+  // set({tone, mood}).
+  function screenParts(g) {
+    const antenna = el(g, 'g', {});
+    el(antenna, 'line', { x1: 0, y1: -40, x2: 0, y2: -62, class: 'nx-stroke-ink-2', 'stroke-width': 4, 'stroke-linecap': 'round' });
+    const bulb = el(antenna, 'circle', { cy: -68, r: 8, 'data-part': 'character-bulb' });
+    [-74, 74].forEach((ex) => el(g, 'rect', { x: ex - 5, y: -14, width: 10, height: 28, rx: 4, class: 'nx-fill-ink-2-fg' }));
+    const body = el(g, 'rect', { x: -70, y: -40, width: 140, height: 80, rx: 18, 'stroke-width': 3, 'data-part': 'character-body' });
+    el(g, 'rect', { x: -56, y: -30, width: 112, height: 60, rx: 12, class: 'nx-fill-page', opacity: 0.55 });
+    const f = face(g, { x: 0, y: 3, scale: 0.95 });
+    const sweat = el(g, 'path', { d: 'M52 -34 Q60 -20 52 -14 Q44 -20 52 -34 Z', class: 'nx-fill-info-bg nx-stroke-info', 'stroke-width': 2, 'data-part': 'character-sweat' });
+    return (s) => {
+      f.set(s.mood);
+      body.setAttribute('class', bodyClass(s.tone));
+      bulb.setAttribute('class', fillClass(s.tone + '-fg'));
+      show(sweat, s.mood === 'worried');
+    };
+  }
+
+  const CHARACTERS = { server: serverParts, screen: screenParts };
+
+  // A character with a face, standing at (x, y): kind 'server' or 'screen'. move({hop, shake, slide})
+  // lifts it by hop, shifts it sideways by slide and tilts it by shake degrees, all from its stand.
+  function character(parent, opts) {
+    const o = withDefaults(opts, { kind: 'server', x: 0, y: 0 });
+    const g = el(parent, 'g', { 'data-part': 'character', 'data-kind': o.kind });
+    const set = CHARACTERS[o.kind](g);
+    place(g, o.x, o.y);
+    return {
+      g,
+      set,
+      move({ hop = 0, shake = 0, slide = 0 }) { place(g, o.x + slide, o.y - hop, 1, shake); },
+    };
+  }
+
+  // ---- Ring timer ----
+  // A ring that drains, drawn around (x, y) at radius r with its number inside. It can hold, with a
+  // pause badge by its rim, release the hold with a lift and a pulse, and shake. `badge` is the
+  // badge's offset from the centre and `flash` where the pulse appears (the centre by default).
+
+  function ring(parent, opts) {
+    const o = withDefaults(opts, { r: 34 });
+    const [cx, cy] = [o.x, o.y];
+    const badgeAt = o.badge || [o.r * 0.7, -o.r * 0.7];
+    const flashAt = o.flash || [cx, cy];
+    const circumference = 2 * Math.PI * o.r;
+    const g = el(parent, 'g', { 'data-part': 'ring' });
+    el(g, 'circle', { cx, cy, r: o.r, fill: 'none', class: 'nx-stroke-hairline', 'stroke-width': 9 });
+    const sweep = el(g, 'circle', { cx, cy, r: o.r, fill: 'none', 'stroke-width': 9, transform: 'rotate(-90 ' + pt([cx, cy]) + ')', 'data-part': 'ring-sweep' });
+    const label = text(g, cx, cy + 6, '', { size: 18, weight: 700, anchor: 'middle' });
+    label.setAttribute('data-part', 'ring-label');
+    const badge = el(g, 'g', { 'data-part': 'hold-badge', visibility: 'hidden' });
+    el(badge, 'circle', { r: 15, class: 'nx-fill-warn-fg nx-stroke-page', 'stroke-width': 3 });
+    [-6, 2].forEach((bx) => el(badge, 'rect', { x: bx, y: -8, width: 4, height: 16, rx: 1.5, class: 'nx-fill-page' }));
+    const flash = el(g, 'circle', { cx: flashAt[0], cy: flashAt[1], r: 10, fill: 'none', class: 'nx-stroke-ok', 'stroke-width': 4, 'data-part': 'ring-flash', visibility: 'hidden' });
+    return {
+      g,
+      set({ frac, tone, label: str }) {
+        sweep.setAttribute('stroke-dasharray', num(circumference * clamp01(frac)) + ' ' + num(circumference));
+        sweep.setAttribute('class', strokeClass(tone));
+        label.textContent = str;
+        label.setAttribute('class', fillClass(tone === 'ink-2' ? 'ink-2' : 'ink'));
+      },
+      // The badge shows while `on`, popping in as p runs 0..1. Call it before release().
+      hold(on, p = 1) {
+        show(badge, on);
+        place(badge, cx + badgeAt[0], cy + badgeAt[1], Math.max(0.01, ease.outBack(p)));
+        badge.setAttribute('opacity', 1);
+      },
+      // While p < 1 the badge rises and fades and a pulse spreads; at p = 1 the pulse is gone.
+      release(p) {
+        show(flash, p < 1);
+        if (p >= 1) return;
+        show(badge, true);
+        place(badge, cx + badgeAt[0], cy + badgeAt[1] - 46 * ease.out(p), 1 - 0.5 * p);
+        attrs(badge, { opacity: 1 - p });
+        attrs(flash, { r: 10 + 34 * ease.out(p), opacity: 1 - p });
+      },
+      shake(p, amp = 7) {
+        const w = wobble(p, amp);
+        g.setAttribute('transform', 'translate(' + pt([cx + w, cy]) + ') rotate(' + num(w) + ') translate(' + pt([-cx, -cy]) + ')');
+      },
+    };
+  }
+
+  // ---- Timeline lanes ----
+  // A time axis with rows of bars under it: lanes(parent, {x0, x1, t0, t1, y, top, ticks, unit, h, panel,
+  // rows: [{y, label}]}). x0..x1 is the axis on screen for times t0..t1 at height y; top is where
+  // the deadline and the playhead start. Each row is a lane of height h. The builders create their
+  // parts when called, so the caller picks the drawing order; each handle then sets times.
+
+  const BAR_DASH = '6 5';
+  const accentOf = (tone) => String(tone).replace(/-(bg|fg)$/, '');
+  // A bar tone is '<accent>-bg' (pale, accent text), '<accent>-fg' (strong, page text) or 'outline'.
+  function barLook(tone) {
+    if (tone === 'outline') return { rect: 'nx-stroke-edge', label: fillClass('ink-2') };
+    return {
+      rect: fillClass(tone) + ' ' + strokeClass(accentOf(tone)),
+      label: /-fg$/.test(tone) ? fillClass('page') : fillClass(accentOf(tone)),
+    };
+  }
+
+  function laneBar(parent, lane, dashed) {
+    const rect = el(parent, 'rect', { y: lane.y, height: lane.h, rx: 6, 'stroke-width': 2, 'stroke-dasharray': dashed ? BAR_DASH : null, 'data-part': 'lane-bar' });
+    const label = text(parent, 0, lane.y + lane.h - 9, '', { size: 18, weight: 600, anchor: 'middle' });
+    label.setAttribute('data-part', 'lane-bar-label');
+    return {
+      // The bar spans from..to in time; its label shows only if it fits (about 9.6 units a letter).
+      set(from, to, str, tone) {
+        const width = lane.x(to) - lane.x(from);
+        const look = barLook(tone);
+        attrs(rect, { x: lane.x(from), width: Math.max(0, width), class: look.rect, fill: tone === 'outline' ? 'none' : null });
+        show(rect, width > 0.5);
+        label.textContent = str;
+        attrs(label, { x: lane.x(from) + width / 2, class: look.label });
+        show(label, width > String(str).length * 9.6 + 16);
+      },
+      hide() { show(rect, false); show(label, false); },
+    };
+  }
+
+  // The dashed outline of the whole time a lane may use.
+  function laneBudget(parent, lane) {
+    const rect = el(parent, 'rect', { x: lane.x(lane.t0), y: lane.y, width: 0, height: lane.h, rx: 6, fill: 'none', class: 'nx-stroke-hairline', 'stroke-width': 2, 'stroke-dasharray': BAR_DASH, 'data-part': 'lane-budget' });
+    return {
+      set(from, to) { attrs(rect, { x: lane.x(from), width: Math.max(0, lane.x(to) - lane.x(from)) }); },
+      show: (on) => show(rect, on),
+    };
+  }
+
+  // A vertical line over every lane with a label above it; solid or dashed, in a tone.
+  function laneDeadline(parent, axisLane) {
+    const line = el(parent, 'line', { y1: axisLane.top, y2: axisLane.axisY, 'stroke-width': 3, 'data-part': 'lane-deadline' });
+    const label = text(parent, 0, axisLane.top - 8, '', { size: 18, weight: 700, anchor: 'middle', halo: true });
+    label.setAttribute('data-part', 'lane-deadline-label');
+    return {
+      set(t, str, tone, solid) {
+        const x = axisLane.x(t);
+        attrs(line, { x1: x, x2: x, class: strokeClass(tone), 'stroke-dasharray': solid ? '1 0' : '7 6' });
+        attrs(label, { x, class: textClass(tone, null, true) });
+        label.textContent = str;
+      },
+      show(on) { show(line, on); show(label, on); },
+    };
+  }
+
+  // A tick (shape 'line', from y1 to y2) or a dot (shape 'dot', at y) at a time, with a label beside it:
+  // on the `side` 'left' (text ends at the mark) or 'right', `gap` units away.
+  function laneMark(parent, axisLane, opts) {
+    const o = withDefaults(opts, { shape: 'line', side: 'left', gap: 10, width: 4 });
+    const dot = o.shape === 'dot';
+    const left = o.side === 'left';
+    const mark = dot
+      ? el(parent, 'circle', { cy: o.y, r: 9, 'stroke-width': 2, 'data-part': 'lane-mark' })
+      : el(parent, 'line', { y1: o.y1, y2: o.y2, 'stroke-width': o.width, 'stroke-linecap': 'round', 'data-part': 'lane-mark' });
+    const label = text(parent, 0, o.labelY, '', { size: 18, weight: 600, anchor: left ? 'end' : 'start', halo: true });
+    label.setAttribute('data-part', 'lane-mark-label');
+    return {
+      set(t, str, tone) {
+        const x = axisLane.x(t);
+        if (dot) attrs(mark, { cx: x, class: fillClass(tone) + ' nx-stroke-page' });
+        else attrs(mark, { x1: x, x2: x, class: strokeClass(tone) });
+        label.textContent = str;
+        attrs(label, { x: x + (left ? -o.gap : o.gap), class: textClass(tone, null, true) });
+      },
+      show(on) { show(mark, on); show(label, on); },
+    };
+  }
+
+  function lanePlayhead(parent, axisLane) {
+    const line = el(parent, 'line', { y1: axisLane.top, y2: axisLane.axisY, class: 'nx-stroke-ink', 'stroke-width': 3, opacity: 0.55, 'data-part': 'playhead' });
+    return {
+      set(t) { const x = axisLane.x(t); attrs(line, { x1: x, x2: x }); },
+      show: (on) => show(line, on),
+    };
+  }
+
+  function lanes(parent, opts) {
+    const o = withDefaults(opts, { ticks: 4, unit: '', h: 32, labelX: 28 });
+    if (o.panel) el(parent, 'rect', { x: o.panel.x, y: o.panel.y, width: o.panel.w, height: o.panel.h, rx: 14, class: 'nx-fill-page nx-stroke-hairline', 'stroke-width': 2 });
+    const ruler = axis(parent, { x0: o.x0, x1: o.x1, y: o.y, t0: o.t0, t1: o.t1, ticks: o.ticks, unit: o.unit });
+    const labels = o.rows.map((row) => {
+      const node = text(parent, o.labelX, row.y + 24, row.label || '', { size: 20, weight: 700 });
+      node.setAttribute('data-part', 'lane-label');
+      return node;
+    });
+    const lane = (i) => ({ x: ruler.x, t0: o.t0, y: o.rows[i].y, h: o.h });
+    const axisLane = { x: ruler.x, top: o.top, axisY: o.y };
+    return {
+      x: ruler.x,
+      setLabel(i, str) { labels[i].textContent = str; },
+      bar: (i, barOpts) => laneBar(parent, lane(i), Boolean(barOpts && barOpts.dashed)),
+      budget: (i) => laneBudget(parent, lane(i)),
+      deadline: () => laneDeadline(parent, axisLane),
+      mark: (markOpts) => laneMark(parent, axisLane, markOpts),
+      playhead: () => lanePlayhead(parent, axisLane),
+    };
+  }
+
+  // ---- Card ----
+  // A titled block of text lines: card(parent, {x, y, w, h, tone, lines: [{y, weight, tone}], tag: {text, w, tone}}).
+  // setLines takes one string, or {text, tone}, per line; lines left out are emptied.
+
+  function cardTag(parent, o) {
+    const t = withDefaults(o.tag, { w: labelWidth(o.tag.text), tone: 'warn' });
+    const g = el(parent, 'g', { 'data-part': 'card-tag', visibility: 'hidden' });
+    const x = o.x + o.w - o.pad - t.w;
+    el(g, 'rect', { x, y: o.y + 12, width: t.w, height: 30, rx: 15, class: bodyClass(t.tone), 'stroke-width': 2 });
+    text(g, x + t.w / 2, o.y + 33, t.text, { size: 18, weight: 700, anchor: 'middle', tone: t.tone });
+    return g;
+  }
+
+  function card(parent, opts) {
+    const o = withDefaults(opts, { tone: 'info', lines: [], pad: 20 });
+    const g = el(parent, 'g', { 'data-part': 'card' });
+    const frame = el(g, 'rect', { x: o.x, y: o.y, width: o.w, height: o.h, rx: 12, 'stroke-width': 3, 'data-part': 'card-box' });
+    const title = text(g, o.x + o.pad, o.y + 32, '', { size: 22, weight: 800 });
+    title.setAttribute('data-part', 'card-title');
+    const rows = o.lines.map((line) => {
+      const node = text(g, o.x + o.pad, line.y, '', { size: 18, weight: line.weight || 400, tone: line.tone || 'ink' });
+      node.setAttribute('data-part', 'card-line');
+      return node;
+    });
+    const tagNode = o.tag ? cardTag(g, o) : null;
+    function setTone(tone) {
+      frame.setAttribute('class', fillClass('page') + ' ' + strokeClass(tone));
+      title.setAttribute('class', fillClass(tone));
+    }
+    setTone(o.tone);
+    return {
+      g,
+      setTitle(str) { title.textContent = str; },
+      setLines(list) {
+        rows.forEach((node, i) => {
+          const item = list[i];
+          const detail = item !== null && typeof item === 'object' ? item : { text: item };
+          node.textContent = detail.text == null ? '' : detail.text;
+          node.setAttribute('class', textClass(detail.tone || o.lines[i].tone || 'ink'));
+        });
+      },
+      setTone,
+      setDashed(on) { frame.setAttribute('stroke-dasharray', on ? '12 7' : 'none'); },
+      tag: (on) => show(tagNode, on),
+      fade(p) { attrs(g, { opacity: p }); },
+      show: (on) => show(g, on),
+    };
+  }
+
+  // ---- Bursts ----
+
+  const CONFETTI_TONES = ['ok', 'info', 'warn', 'stop'];
+
+  // Paper bits flung from `at` in an upward fan, then falling; burst(p) draws progress p and hides them at 1.
+  function confetti(parent, opts) {
+    const o = withDefaults(opts, { count: 16, radius: 90, fall: 120 });
+    const g = el(parent, 'g', { 'data-part': 'confetti' });
+    const bits = Array.from({ length: o.count }, (_, i) => el(g, 'rect', {
+      width: 9, height: 14, rx: 2, class: fillClass(CONFETTI_TONES[i % CONFETTI_TONES.length]), 'data-part': 'confetti-bit',
+    }));
+    return {
+      g,
+      burst(p) {
+        bits.forEach((bit, i) => {
+          show(bit, p < 1);
+          const angle = (i / o.count) * Math.PI - Math.PI;
+          const reach = (o.radius + (i % 3) * 30) * ease.out(p);
+          place(bit, o.at[0] + Math.cos(angle) * reach, o.at[1] + Math.sin(angle) * reach + o.fall * p * p, 1, i * 47 + p * 360);
+        });
+      },
+    };
+  }
+
+  // Eight rays; burst(p, at) grows them from 0.8 to 1.2 times their size as p runs 0..1 and hides them at 1.
+  function spark(parent, opts) {
+    const o = withDefaults(opts, { x: 0, y: 0 });
+    const g = el(parent, 'g', { 'data-part': 'spark' });
+    for (let i = 0; i < 8; i += 1) {
+      const a = (i * Math.PI) / 4;
+      el(g, 'line', { x1: Math.cos(a) * 8, y1: Math.sin(a) * 8, x2: Math.cos(a) * 20, y2: Math.sin(a) * 20, class: 'nx-stroke-warn', 'stroke-width': 3.5, 'stroke-linecap': 'round' });
+    }
+    return {
+      g,
+      burst(p, at) {
+        show(g, p < 1);
+        place(g, at ? at[0] : o.x, at ? at[1] : o.y, 0.8 + 0.4 * p);
+      },
+    };
+  }
+
   NX.kit = {
-    clamp01, lerp, ramp, along, ease,
+    clamp01, lerp, ramp, along, ease, wobble, arc, squash,
     svg, el, text, box, arrow, token, bubble, queue, readout, stopwatch, figure, axis, meter, stamp,
+    face, character, ring, lanes, card, confetti, spark,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

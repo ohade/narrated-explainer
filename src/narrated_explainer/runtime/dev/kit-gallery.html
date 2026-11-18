@@ -135,6 +135,109 @@
     return (p) => { ok.pop(kit.ramp(p, 0.1, 0.4)); no.pop(kit.ramp(p, 0.4, 0.7)); };
   });
 
+  panel('face', 'cycles through its five moods.', (svg) => {
+    const f = kit.face(svg, { x: 200, y: 110, scale: 2.4 });
+    const name = kit.text(svg, 200, 225, '', { anchor: 'middle', weight: 700 });
+    const moods = ['calm', 'busy', 'worried', 'stopped', 'happy'];
+    return (p) => {
+      const mood = moods[Math.min(moods.length - 1, Math.floor(p * moods.length))];
+      f.set(mood);
+      name.textContent = mood;
+    };
+  });
+
+  panel('character', 'a server and a screen take a tone and a mood, then hop or shake.', (svg) => {
+    const server = kit.character(svg, { kind: 'server', x: 110, y: 160 });
+    const screen = kit.character(svg, { kind: 'screen', x: 290, y: 160 });
+    return (p) => {
+      const out = p >= 0.7;
+      server.set({ tone: out ? 'stop' : p < 0.4 ? 'info' : 'warn', mood: out ? 'stopped' : p < 0.4 ? 'busy' : 'worried', lights: p % 0.1 < 0.05 });
+      server.move({ shake: out ? kit.wobble(kit.ramp(p, 0.7, 1), 6) : 0 });
+      screen.set({ tone: out ? 'ok' : p < 0.4 ? 'info' : 'warn', mood: out ? 'happy' : p < 0.4 ? 'calm' : 'worried' });
+      screen.move({ hop: out ? Math.abs(Math.sin(kit.ramp(p, 0.7, 1) * Math.PI * 3)) * 14 : 0 });
+    };
+  });
+
+  panel('ring', 'holds with a badge, is released with a pulse, runs down, then shakes.', (svg) => {
+    const r = kit.ring(svg, { x: 200, y: 130, r: 56, badge: [44, -44] });
+    return (p) => {
+      const held = p < 0.4;
+      const frac = 1 - kit.ramp(p, 0.55, 0.85);
+      r.hold(held, kit.ramp(p, 0, 0.1));
+      r.release(p >= 0.4 && p < 0.55 ? kit.ramp(p, 0.4, 0.55) : 1);
+      r.set({ frac, tone: held ? 'warn' : frac > 0 ? 'info' : 'stop', label: String(Math.round(180 * frac)) });
+      r.shake(p >= 0.85 ? kit.ramp(p, 0.85, 1) : 1);
+    };
+  });
+
+  panel('lanes', 'bars, a budget, a deadline, marks and a playhead over a time axis.', (svg) => {
+    const tl = kit.lanes(svg, { x0: 80, x1: 370, t0: 0, t1: 300, y: 170, top: 34, ticks: 3, labelX: 8, rows: [{ y: 44, label: 'wait' }, { y: 112, label: 'work' }] });
+    const budget = tl.budget(0);
+    const wait = tl.bar(0);
+    const work = tl.bar(1);
+    const start = tl.mark({ y1: 84, y2: 106, labelY: 100, side: 'left', gap: 10 });
+    const bid = tl.mark({ shape: 'dot', y: 96, labelY: 100, side: 'right', gap: 16 });
+    const deadline = tl.deadline();
+    const head = tl.playhead();
+    budget.set(0, 240);
+    return (p) => {
+      const now = 300 * p;
+      wait.set(0, now, 'waiting', now < 240 ? 'info-bg' : 'stop-bg');
+      work.set(60, Math.max(60, Math.min(now, 200)), 'timer', 'info-fg');
+      start.show(now >= 60);
+      start.set(60, 'start', 'ok');
+      bid.show(now >= 150);
+      bid.set(150, 'bid', 'info');
+      deadline.set(240, 'deadline', now < 240 ? 'ink-2' : 'stop', now >= 240);
+      head.set(now);
+    };
+  });
+
+  panel('card', 'a titled block of lines with a tag; it changes tone and fades in.', (svg) => {
+    const c = kit.card(svg, {
+      x: 40, y: 30, w: 320, h: 200, tone: 'info', tag: { text: 'draft', w: 80 },
+      lines: [{ y: 100 }, { y: 128 }, { y: 180, weight: 700 }],
+    });
+    return (p) => {
+      const draft = p < 0.5;
+      c.fade(0.3 + 0.7 * kit.ramp(p, 0, 0.2));
+      c.setTone(draft ? 'info' : 'ok');
+      c.setDashed(draft);
+      c.tag(draft);
+      c.setTitle(draft ? 'The plan' : 'The result');
+      c.setLines(['Start the count first,', 'then connect.', { text: draft ? 'not checked yet' : 'it fits', tone: draft ? 'ink-2' : 'ok' }]);
+    };
+  });
+
+  panel('confetti', 'bits fan out from a point, fall and vanish.', (svg) => {
+    const c = kit.confetti(svg, { at: [200, 190] });
+    return (p) => c.burst(p);
+  });
+
+  panel('spark', 'a flash that grows, at a point the caller picks.', (svg) => {
+    const spots = [[90, 130], [200, 130], [310, 130]];
+    kit.el(svg, 'line', { x1: 70, y1: 150, x2: 330, y2: 150, class: 'nx-stroke-hairline', 'stroke-width': 3, 'stroke-dasharray': '8 6' });
+    const s = kit.spark(svg, { x: 90, y: 130 });
+    return (p) => {
+      const i = Math.min(spots.length - 1, Math.floor(p * spots.length));
+      s.burst(p * spots.length - i, spots[i]);
+    };
+  });
+
+  panel('arc, wobble, squash', 'a ball lands with a squash, then a bell rings.', (svg) => {
+    kit.el(svg, 'line', { x1: 30, y1: 210, x2: 370, y2: 210, class: 'nx-stroke-hairline', 'stroke-width': 3 });
+    const ball = kit.el(svg, 'circle', { r: 20, class: 'nx-fill-warn-fg' });
+    const bell = kit.el(svg, 'g', {});
+    kit.el(bell, 'rect', { x: -14, y: 0, width: 28, height: 30, rx: 8, class: 'nx-fill-info-fg' });
+    kit.el(bell, 'line', { x1: 0, y1: -26, x2: 0, y2: 0, class: 'nx-stroke-ink-2', 'stroke-width': 3 });
+    return (p) => {
+      const fly = kit.ramp(p, 0, 0.6);
+      const at = kit.arc([60, 190], [250, 190], kit.ease.inOut(fly), 110);
+      ball.setAttribute('transform', 'translate(' + at[0] + ' ' + (at[1] + 20) + ') scale(1 ' + kit.squash(fly) + ') translate(0 -20)');
+      bell.setAttribute('transform', 'translate(320 70) rotate(' + kit.wobble(kit.ramp(p, 0.6, 1), 14) + ')');
+    };
+  });
+
   panel('text', 'with a halo, and on strong and soft fills.', (svg) => {
     kit.el(svg, 'rect', { x: 30, y: 30, width: 160, height: 60, rx: 8, class: 'nx-fill-info-fg' });
     kit.text(svg, 110, 68, 'on info-fg', { anchor: 'middle', on: 'info-fg' });
