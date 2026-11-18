@@ -8,7 +8,9 @@ import re
 ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 CUES = set("click pop whoosh tick ding success fail alarm wind thud".split())
 LABELS = set("play pause replay restart prev next voiceOn voiceOff soundOn soundOff speed mode transcript fullscreen more themeAuto themeLight themeDark "
-             "depth chooseDepth goDeeper changeDepth startOver steps aboutMin".split())
+             "depth chooseDepth goDeeper changeDepth startOver steps aboutMin learnMore close".split())
+MAX_CHIPS = 3
+LABEL_MAX, BLURB_MAX = 28, 90
 
 
 def finite_number(value: object, minimum: float = 0, positive: bool = False) -> bool:
@@ -38,18 +40,26 @@ def _level_definitions(levels: object) -> tuple[list[str], list[str]]:
     return ids, errors
 
 
-def _selects(entry: dict, key: str, value: str) -> bool:
-    """Whether `entry` plays for `value`: no list means every value; a malformed list is reported elsewhere."""
+def _selects(entry: dict, key: str, value: str | None) -> bool:
+    """Whether `entry` plays for `value`: no list, or no value (a story without levels), means every value;
+    a malformed list is reported elsewhere."""
     chosen = entry.get(key)
-    return not isinstance(chosen, list) or value in chosen
+    return not isinstance(chosen, list) or value is None or value in chosen
 
 
-def playable(story: dict, mode: str, level: str) -> tuple[list[dict], list[dict]]:
+def playable(story: dict, mode: str, level: str | None) -> tuple[list[dict], list[dict]]:
     """The intro steps and the moments a viewer of `mode` at `level` plays."""
     def kept(kind: str) -> list[dict]:
         entries = story.get(kind, [])
         return [entry for entry in entries if isinstance(entry, dict) and _selects(entry, "modes", mode) and _selects(entry, "levels", level)] if isinstance(entries, list) else []
     return kept("intro"), kept("moments")
+
+
+def positions(story: dict, mode: str, level: str | None) -> list[str]:
+    """The position ids a viewer of `mode` at `level` plays, in order: intro steps, then moments by time."""
+    intro, moments = playable(story, mode, level)
+    by_time = sorted(moments, key=lambda moment: moment["t"] if finite_number(moment.get("t")) else 0)
+    return [entry["id"] for entry in intro + by_time if _valid_id(entry.get("id"))]
 
 
 def declared_modes(story: dict) -> list[str]:
@@ -77,6 +87,118 @@ def levels_without_cue(story: dict) -> list[tuple[str, str]]:
     """The (mode, level) lists of a story with levels in which no step carries a sound cue."""
     return [(mode, level) for mode in declared_modes(story) for level in declared_levels(story)
             if not any("sfx" in entry for part in playable(story, mode, level) for entry in part)]
+
+
+def _in_window(aside: dict, ids: list[str], index: int) -> bool:
+    """Whether position `index` of `ids` is inside the window of `aside`; both ends must be in `ids`."""
+    if "from" not in aside:
+        return True
+    first = ids.index(aside["from"]) if aside["from"] in ids else -1
+    last = (ids.index(aside["to"]) if aside["to"] in ids else -1) if "to" in aside else len(ids) - 1
+    return first != -1 and last != -1 and first <= index <= last
+
+
+def asides_at(story: dict, mode: str, level: str | None, index: int) -> list[dict]:
+    """Every aside offered at position `index` (-1 at rest) of `mode` and `level`; the player shows the first MAX_CHIPS."""
+    ids = positions(story, mode, level)
+    return [aside for aside in story.get("asides", [])
+            if _selects(aside, "modes", mode) and _selects(aside, "levels", level) and _in_window(aside, ids, index)]
+
+
+def crowded_asides(story: dict) -> list[tuple[str, str | None, int]]:
+    """The (mode, level, position index) of the first position, per mode and level, that offers more than MAX_CHIPS asides."""
+    found = []
+    for mode in declared_modes(story):
+        for level in declared_levels(story) or [None]:
+            crowded = [index for index in range(len(positions(story, mode, level)))
+                       if len(asides_at(story, mode, level, index)) > MAX_CHIPS]
+            if crowded:
+                found.append((mode, level, crowded[0]))
+    return found
+
+
+def aside_frame(story: dict, aside: dict) -> tuple[str, str | None, int]:
+    """Where to show `aside` for a picture: the first (mode, level, position index) that offers it, deepest level first."""
+    levels = declared_levels(story)[::-1] or [None]
+    lists = [(mode, level) for mode in declared_modes(story) for level in levels
+             if _selects(aside, "modes", mode) and _selects(aside, "levels", level)]
+    for mode, level in lists:
+        for index in range(len(positions(story, mode, level))):
+            if aside in asides_at(story, mode, level, index):
+                return mode, level, index
+    mode, level = lists[0] if lists else (declared_modes(story)[0], levels[0])
+    return mode, level, 0
+
+
+def _block_problem(block: object) -> str | None:
+    if not isinstance(block, dict):
+        return "each body block must be an object"
+    kind = block.get("type")
+    keys = {"p": {"text"}, "code": {"text"}, "list": {"items"}}.get(kind)
+    if keys is None:
+        return f"unknown block type {kind!r}; use p, list or code"
+    if set(block) != keys | {"type"}:
+        return f"a {kind} block takes only type and {next(iter(keys))}"
+    if kind == "list":
+        items = block["items"]
+        return None if isinstance(items, list) and items and all(_text(item) for item in items) else "a list block needs a nonempty array of nonempty items"
+    return None if _text(block["text"]) else f"a {kind} block needs nonempty text"
+
+
+def _aside_text_problems(aside: dict) -> list[str]:
+    problems = [f"{key} must be nonempty text of at most {limit} characters"
+                for key, limit in (("label", LABEL_MAX), ("blurb", BLURB_MAX))
+                if not _text(aside.get(key)) or len(aside[key]) > limit]
+    body = aside.get("body")
+    if not isinstance(body, list) or not body:
+        return problems + ["body must be a nonempty array of blocks"]
+    return problems + [problem for block in body if (problem := _block_problem(block))]
+
+
+def _aside_order_problem(story: dict, aside: dict, mode_ids: list[str], levels: list[str] | None) -> str | None:
+    """The first (mode, level) list the aside is offered in where its `from` comes after its `to`."""
+    for mode in mode_ids:
+        for level in levels or [None]:
+            ids = positions(story, mode, level)
+            if _selects(aside, "modes", mode) and _selects(aside, "levels", level) and aside["from"] in ids \
+                    and aside["to"] in ids and ids.index(aside["from"]) > ids.index(aside["to"]):
+                return f"from {aside['from']} comes after to {aside['to']} in mode {mode}" + (f", level {level}" if level else "")
+    return None
+
+
+def _aside_place_problems(story: dict, aside: dict, mode_ids: list[str], levels: list[str] | None, step_ids: list[str]) -> list[str]:
+    problems = [f"{key} {aside[key]!r} is not an intro step or moment id" for key in ("from", "to")
+                if key in aside and aside[key] not in step_ids]
+    if "to" in aside and "from" not in aside:
+        problems.append("to needs a from")
+    modes = aside.get("modes", mode_ids)
+    if not isinstance(modes, list) or not modes or any(mode not in mode_ids for mode in modes):
+        problems.append("modes must name known modes")
+    chosen = aside.get("levels")
+    if levels is not None and "levels" in aside and (not isinstance(chosen, list) or not chosen or any(level not in levels for level in chosen)):
+        problems.append("levels must name known levels")
+    order = _aside_order_problem(story, aside, mode_ids, levels) if "to" in aside and not problems else None
+    return problems + [order] if order else problems
+
+
+def _aside_errors(story: dict, mode_ids: list[str], levels: list[str] | None, step_ids: list[str]) -> list[str]:
+    asides = story["asides"]
+    if not isinstance(asides, list):
+        return ["asides must be an array when supplied"]
+    errors, seen = [], set()
+    for aside in asides:
+        if not isinstance(aside, dict) or not _valid_id(aside.get("id")):
+            errors.append("each aside needs a valid id")
+            continue
+        name = f"aside {aside['id']}"
+        problems = _aside_text_problems(aside) + _aside_place_problems(story, aside, mode_ids, levels, step_ids)
+        if aside["id"] in seen:
+            problems.append("id is used twice")
+        elif aside["id"] in step_ids:
+            problems.append("id clashes with a step id")
+        seen.add(aside["id"])
+        errors.extend(f"{name}: {problem}" for problem in problems)
+    return errors
 
 
 def validate_story(story: object) -> list[str]:
@@ -163,6 +285,8 @@ def validate_story(story: object) -> list[str]:
         errors.append("intro and moment ids must be unique")
     if levels:
         errors.extend(_level_coverage_errors(story, mode_ids, levels))
+    if "asides" in story:
+        errors.extend(_aside_errors(story, mode_ids, levels, identifiers))
     for key, allowed in (("labels", LABELS), ("pronounce", None)):
         mapping = story.get(key, {})
         if not isinstance(mapping, dict) or any(not _text(name) or not _text(value) or (allowed is not None and name not in allowed) for name, value in mapping.items()):

@@ -5,7 +5,7 @@ import time
 from playwright.sync_api import Error, sync_playwright
 
 from .capture import WAIT_MS, Capture, launch_browser
-from .story import levels_without_cue
+from .story import crowded_asides, levels_without_cue
 
 WINDOWS = [(1280, 720), (1440, 900), (1920, 1080), (2000, 1174), (2560, 1440), (390, 844)]
 SCHEMES = ["light", "dark"]
@@ -45,6 +45,41 @@ MEASURE_JS = """() => {
     });
   }
   return cases;
+}"""
+# Where the chip rail and every aside panel sit against the stage, per mode, level and position, as the viewer
+# sees them. Arrival animations are finished and the chips' fade is switched off, so a chip that has just
+# left takes no space and none is measured mid-pop.
+ASIDES_JS = """() => {
+  const player = NarratedExplainer.players[0];
+  const figure = player.figure;
+  const modes = player.story.modes && player.story.modes.length ? player.story.modes.map((m) => m.id) : ['main'];
+  const levels = player.story.levels && player.story.levels.length ? player.story.levels.map((l) => l.id) : [null];
+  const calm = document.head.appendChild(document.createElement('style'));
+  calm.textContent = '.nx .nx-aside-chip { transition: none !important; }';
+  const past = (el, box) => { const r = el.getBoundingClientRect();
+    return Math.max(0, box.left - r.left, r.right - box.right, box.top - r.top, r.bottom - box.bottom); };
+  const stage = () => figure.querySelector('.nx-stage').getBoundingClientRect();
+  const settle = () => document.getAnimations().forEach((animation) => animation.finish());
+  const rails = [];
+  const panels = [];
+  const wanted = new Set(player.story.asides.map((a) => a.id));
+  for (const mode of modes) for (const level of levels) {
+    player.positions(mode, level).forEach((_, index) => {
+      const offered = player.asidesAt(mode, index, level);
+      player.showAsides(mode, index, level);
+      settle();
+      const rail = figure.querySelector('.nx-asides');
+      if (offered.length) rails.push({ mode, level, index, past: Math.max(past(rail, stage()),
+        ...offered.map((id) => past(figure.querySelector('.nx-aside-chip[data-aside="' + id + '"]'), stage()))) });
+      for (const id of offered) if (wanted.delete(id)) {
+        player.showAsides(mode, index, level, id);
+        settle();
+        panels.push({ id, mode, level, index, past: past(figure.querySelector('.nx-aside-card'), stage()) });
+      }
+    });
+  }
+  calm.remove();
+  return { rails, panels };
 }"""
 FRAME_JS = "() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))"
 
@@ -94,18 +129,37 @@ class LivePage(Capture):
         self.check_errors()
         return cases
 
+    def measure_asides(self) -> dict:
+        """The overflow of the chip rail at each position that offers an aside, and of each aside's panel."""
+        measured = self.page.evaluate(ASIDES_JS)
+        self.check_errors()
+        return measured
+
 
 SMALL_TEXT_PX = 11
 
 
+def _aside_overflow_errors(measured: dict, prefix: str) -> list[str]:
+    """Errors for a chip rail or an aside panel that extends outside the stage."""
+    errors = [f"{prefix}, mode {rail['mode']}, step {rail['index'] + 1}: the chip rail extends {round(rail['past'] + 0.49)}px outside the stage"
+              + (f" at level {rail['level']}" if rail["level"] else "") for rail in measured["rails"] if rail["past"] > 0.5]
+    return errors + [f"{prefix}: aside {panel['id']} panel extends {round(panel['past'] + 0.49)}px outside the stage"
+                     for panel in measured["panels"] if panel["past"] > 0.5]
+
+
 def inspect_layout(path: Path, css: str = "") -> tuple[list[str], list[str]]:
     """Errors for each window, scheme, mode, level and step where the player does not fit; one warning
-    per window whose smallest stage text is under SMALL_TEXT_PX and one per level list with no sound cue."""
+    per window whose smallest stage text is under SMALL_TEXT_PX, one per level list with no sound cue and
+    one per mode and level that offers more asides than can show at once."""
     errors, warnings = [], []
     try:
         with LivePage(path, css=css) as live:
+            story = live.page.evaluate("NarratedExplainer.players[0].story")
             warnings += [f"{path.name}: mode {mode}, level {level} has no sound cue; give a step an sfx"
-                         for mode, level in levels_without_cue(live.page.evaluate("NarratedExplainer.players[0].story"))]
+                         for mode, level in levels_without_cue(story)]
+            warnings += [f"{path.name}: mode {mode}" + (f", level {level}" if level else "")
+                         + f": more than three asides can show at step {index + 1}; only the first three get a chip"
+                         for mode, level, index in crowded_asides(story)]
             for width, height in WINDOWS:
                 smallest = None
                 for scheme in SCHEMES:
@@ -123,6 +177,8 @@ def inspect_layout(path: Path, css: str = "") -> tuple[list[str], list[str]]:
                                           f"step {case['index'] + 1}: " + "; ".join(problems))
                         if smallest is None or case["text"] < smallest["text"]:
                             smallest = case
+                    if story.get("asides"):
+                        errors += _aside_overflow_errors(live.measure_asides(), f"{path.name}: {width}x{height} {scheme}")
                 if smallest and smallest["text"] < SMALL_TEXT_PX:
                     in_level = f", level {smallest['level']}" if smallest["level"] else ""
                     warnings.append(f"{path.name}: {width}x{height}: smallest stage text is "

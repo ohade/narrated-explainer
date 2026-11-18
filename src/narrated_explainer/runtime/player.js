@@ -21,6 +21,7 @@
     more: 'More', replay: 'Replay',
     depth: 'Depth', chooseDepth: 'Choose how deep to go', goDeeper: 'Go deeper', changeDepth: 'Change depth',
     startOver: 'Start over', steps: 'steps', aboutMin: 'about {n} min',
+    learnMore: 'Learn more', close: 'Close',
   };
   // Control glyphs: static markup on a 24 px grid, drawn in the button's text colour. No story or
   // reader data ever goes into them.
@@ -38,6 +39,11 @@
   const THEMES = ['auto', 'light', 'dark'];
   const THEME_KEY = 'narrated-explainer-theme';
   const MIN_STAGE = 120; // fit(): the stage never narrows below this, or the full width when smaller
+  const MAX_CHIPS = 3; // asides: the chips shown at once
+  // Pop-in: the start menu's cards and the aside chips and panel arrive with one gentle overshoot.
+  const POP_EASING = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+  const POP_MS = 240;
+  const CARD_STAGGER_MS = 70;
 
   const finite = (v, fallback) => (typeof v === 'number' && isFinite(v) ? v : fallback);
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -54,11 +60,13 @@
     return Array.isArray(story.levels) ? story.levels : [];
   }
 
+  // Whether an entry that lists `ids` (modes or levels) is meant for `id`: no list, or a null `id`, means yes.
+  const selects = (ids, id) => !ids || id === null || ids.indexOf(id) !== -1;
+
   // Intro steps in order, then the moments of `mode` sorted by t (stable for equal t). An entry
   // without `modes` or `levels` belongs to every mode and level; `level` null selects every entry.
   function buildPositions(story, mode, level) {
-    const listed = (ids, id) => !ids || id === null || ids.indexOf(id) !== -1;
-    const kept = (entry) => listed(entry.modes, mode) && listed(entry.levels, level);
+    const kept = (entry) => selects(entry.modes, mode) && selects(entry.levels, level);
     const intro = (story.intro || []).filter(kept).map((s) => ({
       kind: 'intro', id: s.id, t: 0, caption: s.caption || '', sfx: s.sfx || null, holdMs: s.holdMs,
     }));
@@ -67,6 +75,22 @@
       .map((m) => ({ kind: 'moment', id: m.id, t: m.t, caption: m.caption || '', sfx: m.sfx || null, holdMs: m.holdMs }))
       .sort((a, b) => a.t - b.t);
     return intro.concat(moments).map((p, index) => Object.assign(p, { index }));
+  }
+
+  // The asides on offer at position `index` (-1 at rest) of `list`, the positions of `mode` at `level`:
+  // an untimed aside always, a timed one from its `from` position through its `to` position (or the
+  // end), and only when both ends are in `list`. At most MAX_CHIPS, in declaration order.
+  function visibleAsides(story, mode, level, list, index) {
+    const place = (id) => list.findIndex((p) => p.id === id);
+    const inWindow = (aside) => {
+      if (!aside.from) return true;
+      const first = place(aside.from);
+      const last = aside.to ? place(aside.to) : list.length - 1;
+      return first !== -1 && last !== -1 && index >= first && index <= last;
+    };
+    return (story.asides || [])
+      .filter((aside) => selects(aside.modes, mode) && selects(aside.levels, level) && inWindow(aside))
+      .slice(0, MAX_CHIPS);
   }
 
   // The index of the last word that has started at `time` seconds, or -1.
@@ -259,6 +283,12 @@
       resolveLevel: levelOr,
       positions(mode, level) {
         return listFor(mode || s.mode, levelOr(level)).map((p) => ({ kind: p.kind, index: p.index, id: p.id, t: p.t, caption: p.caption }));
+      },
+      // The asides on offer at position `index` (-1 at rest) of `mode` and `level` (default: the current mode, the deepest level).
+      asides(mode, level, index) {
+        const chosen = mode || s.mode;
+        const resolved = levelOr(level);
+        return visibleAsides(story, chosen, resolved, listFor(chosen, resolved), index);
       },
       snapshot() {
         return {
@@ -583,6 +613,7 @@
     control(end, 'nx-depth-replay', labels.replay, actions.replay);
     control(end, 'nx-depth-change', labels.changeDepth, actions.change);
     const set = (el, name, value) => { if (el.getAttribute(name) !== value) el.setAttribute(name, value); };
+    let menuShown = false;
     return {
       chip,
       menu,
@@ -602,12 +633,84 @@
         set(chip, 'aria-expanded', String(overlay === 'menu'));
         menu.hidden = overlay !== 'menu';
         end.hidden = overlay !== 'end';
+        if (overlay === 'menu' && !menuShown) cards.forEach((card, i) => actions.pop(card.button, i * CARD_STAGGER_MS));
+        menuShown = overlay === 'menu';
         startOver.hidden = snap.atRest;
         deeper.hidden = snap.depth >= levels.length - 1;
         cards.forEach((card) => set(card.button, 'aria-pressed', String(!snap.atRest && card.id === snap.level)));
       },
       focusCard(id) {
         (cards.find((card) => card.id === id) || cards[0]).button.focus();
+      },
+    };
+  }
+
+  // Asides: the chip rail over the stage and the panel a chip opens. It only builds and shows elements;
+  // `actions` (open, close, pop) are the player's. Every declared aside has a chip, shown or put away by render().
+  function createAsideUi(doc, labels, asides, uid, actions) {
+    const rail = h(doc, 'div', { class: 'nx-asides', role: 'group', 'aria-label': labels.learnMore });
+    const chips = asides.map((aside) => {
+      const button = rail.appendChild(h(doc, 'button', {
+        type: 'button', class: 'nx-aside-chip nx-aside-off', 'data-aside': aside.id, title: labels.learnMore + ': ' + aside.label,
+      }));
+      button.appendChild(h(doc, 'span', { class: 'nx-aside-icon', 'aria-hidden': 'true' }));
+      const text = button.appendChild(h(doc, 'span', { class: 'nx-aside-text' }));
+      text.appendChild(h(doc, 'span', { class: 'nx-aside-label' }, aside.label));
+      text.appendChild(h(doc, 'span', { class: 'nx-aside-blurb' }, aside.blurb));
+      button.addEventListener('click', () => actions.open(aside.id));
+      return { aside, button, shown: false };
+    });
+    const panel = h(doc, 'div', { class: 'nx-overlay nx-aside-panel', role: 'dialog', 'aria-labelledby': uid + '-aside-title' });
+    panel.hidden = true;
+    const card = panel.appendChild(h(doc, 'div', { class: 'nx-aside-card' }));
+    const head = card.appendChild(h(doc, 'div', { class: 'nx-aside-head' }));
+    const title = head.appendChild(h(doc, 'h2', { class: 'nx-aside-title', id: uid + '-aside-title' }));
+    const close = head.appendChild(h(doc, 'button', { type: 'button', class: 'nx-aside-close' }, labels.close));
+    close.addEventListener('click', actions.close);
+    // The body scrolls inside the panel, so it can be reached by keyboard.
+    const body = card.appendChild(h(doc, 'div', { class: 'nx-aside-body', tabindex: '0' }));
+    // Blocks are text only: every string goes in through textContent.
+    const fill = (aside) => {
+      title.textContent = aside.label;
+      body.textContent = '';
+      aside.body.forEach((block) => {
+        if (block.type === 'list') {
+          const list = body.appendChild(h(doc, 'ul', {}));
+          block.items.forEach((item) => list.appendChild(h(doc, 'li', {}, item)));
+        } else if (block.type === 'code') {
+          body.appendChild(h(doc, 'pre', {})).appendChild(h(doc, 'code', {}, block.text));
+        } else {
+          body.appendChild(h(doc, 'p', {}, block.text));
+        }
+      });
+      body.scrollTop = 0;
+    };
+    let open = null;
+    return {
+      rail,
+      panel,
+      // Shows the chips of the asides in `shownIds` and, when `openId` is not null, that aside's panel.
+      render(shownIds, openId) {
+        chips.forEach((chip) => {
+          const on = shownIds.indexOf(chip.aside.id) !== -1;
+          if (on === chip.shown) return;
+          chip.shown = on;
+          chip.button.classList.toggle('nx-aside-off', !on);
+          if (on) actions.pop(chip.button);
+        });
+        if (openId === open) return;
+        open = openId;
+        panel.hidden = openId === null;
+        if (openId === null) return;
+        fill(asides.find((aside) => aside.id === openId));
+        actions.pop(card);
+      },
+      focusClose() { close.focus(); },
+      // Focuses the chip of `id` when it is shown; false when it is not.
+      focusChip(id) {
+        const chip = chips.find((candidate) => candidate.aside.id === id);
+        if (chip && chip.shown) chip.button.focus();
+        return Boolean(chip && chip.shown);
       },
     };
   }
@@ -643,7 +746,9 @@
     const levels = levelList(story);
     const uid = 'nx-' + (story.id || 'story') + '-' + (NX.players.length + 1);
     // `overlay` is what covers the stage: the start menu, the end card, or nothing.
-    const ui = { soundOn: true, frameRequest: 0, lastCue: 0, captionKey: '', wordSpans: [], word: -1, overlay: levels.length ? 'menu' : null, describedMode: null };
+    // 'aside' is the panel of the aside `ui.aside` ({ id, resume, prior }: whether it was playing, and the overlay to restore).
+    // `frozen` is set by a tool frame (goto, renderAt), which shows no chips, until a viewer's action.
+    const ui = { soundOn: true, frameRequest: 0, lastCue: 0, captionKey: '', wordSpans: [], word: -1, overlay: levels.length ? 'menu' : null, describedMode: null, aside: null, frozen: false };
     const depthUi = levels.length ? createDepthUi(doc, labels, levels, uid, {
       choose: (id) => chooseLevel(id),
       startOver: () => restart(),
@@ -651,6 +756,13 @@
       deeper: () => goDeeper(),
       replay: () => restart(),
       change: () => openMenu(),
+      pop: (el, delay) => popIn(el, delay),
+    }) : null;
+    const asides = Array.isArray(story.asides) ? story.asides : [];
+    const asideUi = asides.length ? createAsideUi(doc, labels, asides, uid, {
+      open: (id) => openAside(id),
+      close: () => closeAside(),
+      pop: (el, delay) => popIn(el, delay),
     }) : null;
 
     figure.classList.add('nx');
@@ -711,6 +823,7 @@
     const captionEl = figure.appendChild(h(doc, 'figcaption', { class: 'nx-caption', 'aria-live': 'polite', id: uid + '-caption' }));
     scene.build(stage);
     if (depthUi) { stage.appendChild(depthUi.menu); stage.appendChild(depthUi.end); }
+    if (asideUi) { stage.appendChild(asideUi.rail); stage.appendChild(asideUi.panel); }
 
     let markers = [];
     let transcriptItems = [];
@@ -806,6 +919,18 @@
       });
     }
 
+    // A short arrival animation; none under reduced motion or without the Web Animations API.
+    function popIn(el, delay) {
+      if (c.snapshot().reduced || typeof el.animate !== 'function') return;
+      el.animate([{ opacity: 0, transform: 'translateY(8px) scale(0.92)' }, { opacity: 1, transform: 'none' }],
+        { duration: POP_MS, delay: delay || 0, easing: POP_EASING, fill: 'backwards' });
+    }
+
+    function renderAsides(snap) {
+      const offered = ui.frozen ? [] : c.asides(snap.mode, snap.level, snap.at.index);
+      asideUi.render(offered.map((aside) => aside.id), ui.overlay === 'aside' ? ui.aside.id : null);
+    }
+
     // Draws `snap` (live or a tool frame) with its controls, caption and highlighted word.
     function render(snap, motion, sfx, word) {
       scene.draw(scene.stateAt(snap.mode, snap.t), {
@@ -815,6 +940,7 @@
       renderCaption(snap);
       renderControls(snap);
       if (depthUi) depthUi.render(snap, ui.overlay);
+      if (asideUi) renderAsides(snap);
       renderWord(word);
     }
 
@@ -841,6 +967,7 @@
     const clock = () => root.performance.now();
 
     function update() {
+      ui.frozen = false;
       handleCue();
       renderLive(clock());
       loop();
@@ -884,6 +1011,26 @@
       playButton.focus();
       update();
     }
+    // Asides: a chip pauses the story and opens its panel over the stage; closing it resumes a story that was playing.
+    function openAside(id) {
+      unlock();
+      ui.aside = { id, resume: c.snapshot().playing, prior: ui.overlay };
+      c.pause(clock());
+      stopClip();
+      ui.overlay = 'aside';
+      update();
+      asideUi.focusClose();
+    }
+    function closeAside() {
+      if (ui.overlay !== 'aside') return;
+      const { id, resume, prior } = ui.aside;
+      unlock();
+      ui.overlay = prior;
+      ui.aside = null;
+      if (resume) c.play(clock());
+      update();
+      if (!asideUi.focusChip(id)) playButton.focus();
+    }
     function goDeeper() {
       const next = levels[c.snapshot().depth + 1];
       if (next) chooseLevel(next.id);
@@ -891,7 +1038,7 @@
     function selectMode(id) {
       unlock();
       if (id === c.snapshot().mode) return; // the controller ignores it; keep the clip playing
-      if (ui.overlay === 'end') ui.overlay = null;
+      if (ui.overlay === 'end' || ui.overlay === 'aside') ui.overlay = null;
       stopClip();
       c.setMode(id, clock());
       buildLists();
@@ -1003,6 +1150,11 @@
         event.preventDefault();
         return;
       }
+      if (event.key === 'Escape' && ui.overlay === 'aside') {
+        closeAside();
+        event.preventDefault();
+        return;
+      }
       if (event.key === 'Escape' && depthUi && ui.overlay === 'menu' && !c.snapshot().atRest) {
         closeMenu();
         event.preventDefault();
@@ -1010,7 +1162,8 @@
       }
       // The select, the More widget and the depth cards keep their own keys (Space opens the menu, letters pick items).
       const inDepth = depthUi && (depthUi.menu.contains(event.target) || depthUi.end.contains(event.target));
-      if (isTypingTarget(event.target) || more.contains(event.target) || inDepth) return;
+      const inAside = asideUi && (asideUi.rail.contains(event.target) || asideUi.panel.contains(event.target));
+      if (isTypingTarget(event.target) || more.contains(event.target) || inDepth || inAside) return;
       const action = keyAction(event);
       if (!action) return;
       // Space on a focused button already clicks it.
@@ -1035,6 +1188,7 @@
       stopClip();
       if (ui.frameRequest) { root.cancelAnimationFrame(ui.frameRequest); ui.frameRequest = 0; }
       ui.overlay = null;
+      ui.frozen = true;
       c.setMode(mode, clock());
       c.setLevel(c.resolveLevel(level), clock());
       buildLists();
@@ -1049,6 +1203,17 @@
         showMode(mode, level);
         c.jump(index, clock());
         ui.lastCue = c.cue.seq; // draw only: no narration, no cue
+        renderLive(clock());
+      },
+      // The ids of the asides on offer at position `index` of `mode` and `level`.
+      asidesAt: (mode, index, level) => c.asides(mode, level, index).map((aside) => aside.id),
+      // Like goto, but as a viewer sees it: with the chips of that position and, when `openId` is given, that aside's panel.
+      showAsides(mode, index, level, openId) {
+        showMode(mode, level);
+        c.jump(index, clock());
+        ui.lastCue = c.cue.seq;
+        ui.frozen = false;
+        if (openId) { ui.aside = { id: openId, resume: false, prior: null }; ui.overlay = 'aside'; }
         renderLive(clock());
       },
       plan: (mode, level) => c.plan(mode, level),

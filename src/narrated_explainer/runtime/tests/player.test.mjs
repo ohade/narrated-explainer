@@ -1282,3 +1282,287 @@ test('the tool API takes a trailing level, defaults to the deepest and leaves no
   assert.equal(endCard(figure).hidden, true, 'the last frame of an export carries no end card');
   assert.equal(menuPanel(figure).hidden, true);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Asides: optional side material behind chips in the stage. The controller says which are visible
+// at a (mode, level, position index); the view shows them as chips and opens one as a panel.
+const body = (text) => [{ type: 'p', text }];
+const ASIDES = [
+  { id: 'why', label: 'Why it starts', blurb: 'A word on the start.', from: 'start', to: 'half',
+    body: [{ type: 'p', text: 'First <b>paragraph</b>.' }, { type: 'list', items: ['one', 'two'] }, { type: 'code', text: 'a < b' }] },
+  { id: 'later', label: 'Later', blurb: 'From halfway on.', from: 'half', body: body('Later text.') },
+  { id: 'always', label: 'Always', blurb: 'Always there.', body: body('Always text.') },
+  { id: 'bumps', label: 'Bumps', blurb: 'Only when bumpy.', modes: ['bumpy'], body: body('Bump text.') },
+  { id: 'deep-only', label: 'Deep only', blurb: 'Only at depth.', levels: ['deep'], from: 'intro-track', to: 'start', body: body('Deep text.') },
+  { id: 'gone', label: 'Needs the bump', blurb: 'Ends at a missing step.', from: 'start', to: 'bump', body: body('Gone text.') },
+];
+const withAsides = (list, extra = {}) => ({ ...levelsStory, ...extra, asides: list });
+// Reports [] when the controller offers no asides, so a missing feature fails as an assertion.
+const shownAt = (c, mode, level, index) => plain(ids(typeof c.asides === 'function' ? c.asides(mode, level, index) : []));
+const asidesController = (list) => NX._createController(withAsides(list), {}, { reduced: false });
+const mountAsides = (list, options = {}) => mountFake(null, { storyOverride: { ...story, asides: list }, ...options });
+const mountAsidesLevels = (list, options = {}) => mountFake(null, { storyOverride: withAsides(list), ...options });
+const chipEls = (figure) => byClass(figure, 'nx-aside-chip');
+const shownChips = (figure) => plain(chipEls(figure).filter((b) => !b.classList.contains('nx-aside-off')).map((b) => b.getAttribute('data-aside')));
+const chipFor = (figure, id) => required(chipEls(figure).find((b) => b.getAttribute('data-aside') === id), 'a chip for ' + id);
+const asidePanel = (figure) => required(byClass(figure, 'nx-aside-panel')[0], 'an aside panel');
+const closeOf = (figure) => required(byClass(figure, 'nx-aside-close')[0], 'a Close button');
+const stepTo = (figure, count) => { for (let i = 0; i < count; i += 1) byClass(figure, 'nx-next')[0].click(); };
+
+test('asides: a timed aside is visible from its first position through its last, an untimed one always', () => {
+  const c = asidesController(ASIDES);
+  // smooth, deep: intro-ball, intro-track, start, half, finish
+  const table = [[-1, ['always']], [0, ['always']], [1, ['always', 'deep-only']], [2, ['why', 'always', 'deep-only']],
+    [3, ['why', 'later', 'always']], [4, ['later', 'always']]];
+  for (const [index, expected] of table) assert.deepEqual(shownAt(c, 'smooth', 'deep', index), expected, 'smooth/deep at ' + index);
+});
+
+test('asides: an end that the mode and level leave out hides the aside, and modes and levels filter', () => {
+  const c = asidesController(ASIDES);
+  // smooth, glance: intro-ball, start, finish: half is missing, so why and later are hidden
+  for (let index = -1; index < 3; index += 1) assert.deepEqual(shownAt(c, 'smooth', 'glance', index), ['always'], 'glance at ' + index);
+  // smooth, tour: intro-ball, intro-track, start, half, finish; deep-only is for deep
+  assert.deepEqual(shownAt(c, 'smooth', 'tour', 2), ['why', 'always']);
+  assert.deepEqual(shownAt(c, 'smooth', 'tour', 3), ['why', 'later', 'always']);
+  const only = asidesController([ASIDES[3], ASIDES[5]]); // bumps (bumpy only) and gone (needs the bump step)
+  assert.deepEqual([1, 2, 4, 5].map((i) => shownAt(only, 'bumpy', 'deep', i)), [['bumps'], ['bumps', 'gone'], ['bumps', 'gone'], ['bumps']]);
+  for (let index = -1; index < 5; index += 1) assert.deepEqual(shownAt(only, 'smooth', 'deep', index), [], 'smooth at ' + index);
+});
+
+test('asides: an open-ended aside stays through the end, and no level means the deepest', () => {
+  const c = asidesController(ASIDES);
+  assert.deepEqual(shownAt(c, 'smooth', undefined, 4), ['later', 'always']);
+  assert.deepEqual(shownAt(c, undefined, 'deep', 3), ['why', 'later', 'always']);
+});
+
+test('asides: at most three are visible, the first three in declaration order', () => {
+  const many = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, label: id, blurb: id, body: body(id) }));
+  assert.deepEqual(shownAt(asidesController(many), 'smooth', 'deep', 0), ['a', 'b', 'c']);
+  const { figure } = mountAsides(many);
+  assert.equal(chipEls(figure).length, 5, 'every aside has a chip; only three are shown');
+  assert.deepEqual(shownChips(figure), ['a', 'b', 'c']);
+});
+
+test('asides: a story without asides has no rail, no chips and no panel', () => {
+  assert.deepEqual(shownAt(makeLevels(), 'smooth', 'deep', 0), []);
+  const { figure } = mountFake(null);
+  for (const cls of ['nx-asides', 'nx-aside-chip', 'nx-aside-panel']) assert.equal(byClass(figure, cls).length, 0, cls);
+  const emptied = mountAsides([]);
+  assert.equal(byClass(emptied.figure, 'nx-asides').length, 0);
+});
+
+test('asides: the chips follow the position as the viewer steps, and the rail sits inside the stage', () => {
+  const { figure } = mountAsides(ASIDES.slice(0, 3));
+  const stage = required(byClass(figure, 'nx-stage')[0], 'the stage');
+  assert.ok(stage.contains(required(byClass(figure, 'nx-asides')[0], 'a rail')), 'the rail is inside the stage');
+  assert.deepEqual(shownChips(figure), ['always'], 'at rest only the untimed aside');
+  const seenAt = [];
+  for (let i = 0; i < 5; i += 1) { byClass(figure, 'nx-next')[0].click(); seenAt.push(shownChips(figure)); }
+  assert.deepEqual(seenAt, [['always'], ['always'], ['why', 'always'], ['why', 'later', 'always'], ['later', 'always']]);
+  byClass(figure, 'nx-prev')[0].click();
+  assert.deepEqual(shownChips(figure), ['why', 'later', 'always'], 'stepping back recomputes');
+});
+
+test('asides: a mode switch and a level switch recompute the chips', () => {
+  const { figure } = mountAsidesLevels([ASIDES[2], ASIDES[3], ASIDES[4]]);
+  assert.deepEqual(shownChips(figure), ['always'], 'at rest: the deepest level, mode smooth');
+  card(figure, 'Glance').click();
+  assert.deepEqual(shownChips(figure), ['always']);
+  byClass(figure, 'nx-mode').find((b) => b.textContent === 'Bumpy').click();
+  assert.deepEqual(shownChips(figure), ['always', 'bumps']);
+  chipOf(figure).click();
+  card(figure, 'Deep').click();
+  assert.deepEqual(shownChips(figure), ['always', 'bumps'], 'deep-only needs intro-track, which has not been reached yet');
+  stepTo(figure, 2);
+  assert.deepEqual(shownChips(figure), ['always', 'bumps', 'deep-only']);
+});
+
+test('asides: a chip shows an icon, the label and the blurb, and is a button named from the labels', () => {
+  const { figure } = mountAsides(ASIDES.slice(0, 3));
+  const rail = required(byClass(figure, 'nx-asides')[0], 'a rail');
+  assert.equal(rail.getAttribute('aria-label'), 'Learn more');
+  const chip = chipFor(figure, 'always');
+  assert.equal(chip.tagName, 'BUTTON');
+  assert.equal(chip.getAttribute('type'), 'button');
+  assert.equal(chip.getAttribute('title'), 'Learn more: Always');
+  assert.equal(byClass(chip, 'nx-aside-icon').length, 1);
+  assert.equal(byClass(chip, 'nx-aside-label')[0].textContent, 'Always');
+  assert.equal(byClass(chip, 'nx-aside-blurb')[0].textContent, 'Always there.');
+  const german = mountAsides(ASIDES.slice(2, 3), { storyOverride: { ...story, asides: ASIDES.slice(2, 3), labels: { learnMore: 'Mehr erfahren', close: 'Schliessen' } } });
+  assert.equal(byClass(german.figure, 'nx-asides')[0].getAttribute('aria-label'), 'Mehr erfahren');
+  assert.equal(chipFor(german.figure, 'always').getAttribute('title'), 'Mehr erfahren: Always');
+  assert.equal(closeOf(german.figure).textContent, 'Schliessen');
+  assert.equal(closeOf(figure).textContent, 'Close');
+});
+
+test('asides: clicking a chip pauses the story and opens a panel with the label, the blocks and Close', () => {
+  const { figure, doc } = mountAsides(ASIDES);
+  byClass(figure, 'nx-play')[0].click();
+  assert.equal(isPlaying(figure), true);
+  assert.equal(asidePanel(figure).hidden, true, 'closed until a chip is clicked');
+  chipFor(figure, 'always').click();
+  assert.equal(isPlaying(figure), false);
+  assert.equal(asidePanel(figure).hidden, false);
+  assert.equal(byClass(asidePanel(figure), 'nx-aside-title')[0].textContent, 'Always');
+  assert.equal(byClass(asidePanel(figure), 'nx-aside-body')[0].textContent, 'Always text.');
+  assert.equal(doc.focused, closeOf(figure), 'focus moves into the panel');
+  const rich = mountAsides(ASIDES);
+  rich.player.showAsides('smooth', 2, undefined, 'why');
+  const parts = byClass(asidePanel(rich.figure), 'nx-aside-body')[0];
+  assert.deepEqual(plain(parts.children.map((n) => n.tagName)), ['P', 'UL', 'PRE']);
+  assert.equal(parts.children[0].textContent, 'First <b>paragraph</b>.', 'text is never read as HTML');
+  assert.deepEqual(plain(parts.children[1].children.map((n) => [n.tagName, n.textContent])), [['LI', 'one'], ['LI', 'two']]);
+  assert.equal(parts.children[2].textContent, 'a < b');
+  assert.equal(all(rich.figure, (n) => n.tagName === 'B').length, 0);
+});
+
+test('asides: Close and Escape resume only a story that was playing', () => {
+  const { figure, doc } = mountAsides(ASIDES);
+  byClass(figure, 'nx-play')[0].click();
+  chipFor(figure, 'always').click();
+  closeOf(figure).click();
+  assert.equal(asidePanel(figure).hidden, true);
+  assert.equal(isPlaying(figure), true, 'it was playing, so Close resumes');
+  assert.equal(doc.focused, chipFor(figure, 'always'), 'focus returns to the chip');
+  chipFor(figure, 'always').click();
+  const escape = press(figure, closeOf(figure), 'Escape');
+  assert.equal(escape.defaultPrevented, true);
+  assert.equal(asidePanel(figure).hidden, true);
+  assert.equal(isPlaying(figure), true, 'Escape resumes too');
+  byClass(figure, 'nx-play')[0].click(); // pause
+  chipFor(figure, 'always').click();
+  closeOf(figure).click();
+  assert.equal(isPlaying(figure), false, 'it was paused, so Close leaves it paused');
+  chipFor(figure, 'always').click();
+  press(figure, asidePanel(figure), 'Escape');
+  assert.equal(isPlaying(figure), false);
+  assert.equal(asidePanel(figure).hidden, true);
+});
+
+test('asides: Escape elsewhere is left alone while no panel is open', () => {
+  const { figure } = mountAsides(ASIDES);
+  assert.equal(press(figure, chipFor(figure, 'always'), 'Escape').defaultPrevented, false);
+});
+
+test('asides: shortcuts do not fire on a chip or inside the panel', () => {
+  const { figure } = mountFake(NARRATION, { storyOverride: { ...story, asides: ASIDES } });
+  const voice = byClass(figure, 'nx-voice')[0];
+  for (const key of ['k', ' ', 'r', 'v', 'ArrowRight', '1']) {
+    assert.equal(press(figure, chipFor(figure, 'always'), key).defaultPrevented, false, key + ' on a chip');
+  }
+  assert.equal(isPlaying(figure), false);
+  assert.equal(voice.textContent, 'Voice: on');
+  chipFor(figure, 'always').click();
+  for (const key of ['k', ' ', 'r', 'v', 'ArrowRight']) {
+    assert.equal(press(figure, closeOf(figure), key).defaultPrevented, false, key + ' on Close');
+    assert.equal(press(figure, byClass(asidePanel(figure), 'nx-aside-body')[0], key).defaultPrevented, false, key + ' in the body');
+  }
+  assert.equal(voice.textContent, 'Voice: on');
+  assert.equal(seen(figure).caption, 'Press Play to watch the ball roll.', 'nothing moved');
+  assert.equal(press(figure, figure, 'v').defaultPrevented, true, 'a shortcut elsewhere still works');
+});
+
+test('asides: opening the depth menu closes the panel first, from the chip or the m key', () => {
+  const { figure } = mountAsidesLevels([ASIDES[2]]);
+  card(figure, 'Tour').click();
+  chipFor(figure, 'always').click();
+  assert.equal(asidePanel(figure).hidden, false);
+  chipOf(figure).click();
+  assert.equal(asidePanel(figure).hidden, true);
+  assert.equal(menuPanel(figure).hidden, false);
+  card(figure, 'Tour').click();
+  chipFor(figure, 'always').click();
+  press(figure, figure, 'm');
+  assert.equal(asidePanel(figure).hidden, true);
+  assert.equal(menuPanel(figure).hidden, false);
+});
+
+test('asides: the start menu stays under a panel opened at rest and comes back on Close', () => {
+  const { figure } = mountAsidesLevels([ASIDES[2]]);
+  assert.deepEqual(shownChips(figure), ['always'], 'the untimed chip is there beside the start menu');
+  assert.equal(menuPanel(figure).hidden, false);
+  chipFor(figure, 'always').click();
+  assert.equal(asidePanel(figure).hidden, false);
+  assert.equal(menuPanel(figure).hidden, true);
+  closeOf(figure).click();
+  assert.equal(asidePanel(figure).hidden, true);
+  assert.equal(menuPanel(figure).hidden, false, 'the menu returns');
+  assert.equal(isPlaying(figure), false);
+  card(figure, 'Glance').click();
+  assert.equal(isPlaying(figure), true, 'the cards still work');
+});
+
+test('asides: choosing a mode or stepping closes the panel', () => {
+  const { figure } = mountAsides(ASIDES);
+  chipFor(figure, 'always').click();
+  byClass(figure, 'nx-next')[0].click();
+  assert.equal(asidePanel(figure).hidden, true);
+  chipFor(figure, 'always').click();
+  byClass(figure, 'nx-mode').find((b) => b.textContent === 'Bumpy').click();
+  assert.equal(asidePanel(figure).hidden, true);
+});
+
+test('asides: goto and renderAt never show a chip or a panel, and showAsides does', () => {
+  const { player, figure } = mountAsides(ASIDES);
+  assert.deepEqual(shownChips(figure), ['always']);
+  player.goto('smooth', 3);
+  assert.deepEqual(shownChips(figure), [], 'goto: no chips');
+  assert.equal(asidePanel(figure).hidden, true);
+  player.showAsides('smooth', 3, undefined, 'why');
+  assert.deepEqual(shownChips(figure), ['why', 'later', 'always']);
+  assert.equal(asidePanel(figure).hidden, false);
+  assert.equal(byClass(asidePanel(figure), 'nx-aside-title')[0].textContent, 'Why it starts');
+  player.renderAt('smooth', 1500);
+  assert.deepEqual(shownChips(figure), [], 'renderAt: no chips');
+  assert.equal(asidePanel(figure).hidden, true, 'renderAt: no panel');
+  player.showAsides('smooth', 2);
+  assert.deepEqual(shownChips(figure), ['why', 'always', 'deep-only']);
+  assert.equal(asidePanel(figure).hidden, true, 'no panel unless one is named');
+  assert.deepEqual(plain(player.asidesAt('smooth', 3)), ['why', 'later', 'always']);
+  player.goto('smooth', 1);
+  byClass(figure, 'nx-next')[0].click();
+  assert.deepEqual(shownChips(figure), ['why', 'always', 'deep-only'], 'a reader action shows the chips again');
+});
+
+test('asides: the asides are not narrated and do not touch captions or the transcript', () => {
+  const { figure } = mountAsides(ASIDES);
+  const plainView = mountFake(null);
+  assert.deepEqual(plain(seen(figure).transcript), plain(seen(plainView.figure).transcript));
+  byClass(figure, 'nx-play')[0].click();
+  assert.equal(seen(figure).caption, 'This is the ball.');
+  assert.equal(byClass(figure, 'nx-transcript-item').length, 5);
+});
+
+test('asides: the start menu cards and the chips pop in with one easing, and not under reduced motion', () => {
+  const calls = [];
+  FakeNode.prototype.animate = function (keyframes, options) { calls.push({ node: this, options: plain(options) }); };
+  try {
+    const { figure } = mountAsidesLevels([ASIDES[2]]);
+    const cardPops = calls.filter((c) => c.node.classList.contains('nx-depth-card'));
+    const chipPops = calls.filter((c) => c.node.classList.contains('nx-aside-chip'));
+    assert.equal(cardPops.length, 3, 'the menu pops its three cards in when it opens');
+    assert.equal(chipPops.length, 1, 'a chip pops in when it appears');
+    const delays = cardPops.map((c) => c.options.delay);
+    assert.ok(delays[0] < delays[1] && delays[1] < delays[2], 'the cards come one after another: ' + delays);
+    assert.ok(cardPops[0].options.easing && cardPops[0].options.easing === chipPops[0].options.easing, 'one easing');
+    card(figure, 'Glance').click();
+    calls.length = 0;
+    chipOf(figure).click();
+    assert.equal(calls.filter((c) => c.node.classList.contains('nx-depth-card')).length, 3, 'reopening pops them again');
+    calls.length = 0;
+    const reduced = mountAsidesLevels([ASIDES[2]], { globals: { matchMedia: () => ({ matches: true, addEventListener() {} }) } });
+    assert.equal(calls.length, 0, 'no animation under reduced motion');
+    assert.deepEqual(shownChips(reduced.figure), ['always']);
+  } finally {
+    delete FakeNode.prototype.animate;
+  }
+});
+
+test('asides: css lets chips and cards lift on hover and focus, and nothing moves under reduced motion', () => {
+  const css = read('player.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(/\.nx \.nx-depth-card:hover,\s*\.nx \.nx-depth-card:focus-visible\s*\{[^}]*translateY/.test(css), 'cards lift on hover and focus');
+  assert.ok(/\.nx \.nx-aside-chip:hover,\s*\.nx \.nx-aside-chip:focus-visible\s*\{[^}]*translateY/.test(css), 'chips lift on hover and focus');
+  const reduced = css.slice(css.indexOf('prefers-reduced-motion'));
+  for (const needle of ['.nx-aside-chip', '.nx-depth-card:focus-visible', '.nx-aside-chip:focus-visible']) assert.ok(reduced.includes(needle), needle + ' is calmed under reduced motion');
+  assert.ok(/\.nx \.nx-aside-panel/.test(css) && /\.nx \.nx-aside-body\s*\{[^}]*overflow:\s*auto/.test(css), 'the panel body scrolls inside itself');
+});

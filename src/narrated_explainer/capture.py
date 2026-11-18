@@ -12,6 +12,7 @@ figure.nx { margin: 0 !important; max-width: none !important; }
 figure.nx .nx-stage { max-width: none !important; }
 figure.nx .nx-bar { position: static !important; }
 figure.nx .nx-theme { display: none !important; }
+figure.nx .nx-asides { display: none !important; }
 """
 VIDEO_CSS = "figure.nx .nx-controls { display: none !important; }"
 WAIT_MS = 30000

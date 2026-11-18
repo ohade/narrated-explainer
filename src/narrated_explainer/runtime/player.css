@@ -233,7 +233,8 @@
   transition: transform 140ms ease, border-color 140ms ease;
 }
 .nx .nx-depth-card[aria-pressed="true"] { font-weight: 400; }
-.nx .nx-depth-card:hover { transform: translateY(-3px); border-color: var(--nx-info-fg); }
+.nx .nx-depth-card:hover,
+.nx .nx-depth-card:focus-visible { transform: translateY(-3px); border-color: var(--nx-info-fg); }
 .nx .nx-depth-label { font-size: 22px; font-weight: 700; }
 .nx .nx-depth-blurb { font-size: 18px; color: var(--nx-ink-2); }
 .nx .nx-depth-meta { font-size: 16px; color: var(--nx-ink-2); }
@@ -242,14 +243,108 @@
 .nx .nx-dot-on { background: var(--nx-info-fg); }
 .nx .nx-depth-end { flex-direction: row; flex-wrap: wrap; }
 
+/* Asides: a rail of chips in the stage's top corner and the panel a chip opens. Both are out of flow, so
+   neither moves the stage. The rail comes after the depth overlays in the stage, so its chips stay in reach
+   above the start menu and the end card; the panel comes last and covers them. A chip that leaves fades
+   (display is animated discretely) and one that arrives is popped in by the player. */
+.nx .nx-asides {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 8px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: min(360px, calc(100% - 16px));
+  max-height: calc(100% - 16px);
+  pointer-events: none;
+}
+.nx .nx-aside-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 100%;
+  padding: 8px 14px 8px 10px;
+  text-align: start;
+  background: var(--nx-page);
+  border: 2px solid var(--nx-info-fg);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px var(--nx-hairline);
+  pointer-events: auto;
+  transition: opacity 160ms ease, transform 140ms ease, border-color 140ms ease, display 160ms allow-discrete;
+}
+.nx .nx-aside-off { display: none; opacity: 0; }
+.nx .nx-aside-chip:hover,
+.nx .nx-aside-chip:focus-visible { transform: translateY(-3px) rotate(-1deg); border-color: var(--nx-ink); }
+.nx .nx-aside-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--nx-info-fg);
+  background: var(--nx-info-bg);
+  border-radius: 50%;
+}
+.nx .nx-aside-icon::before { content: '?'; font-size: 20px; font-weight: 700; line-height: 1; }
+.nx .nx-aside-text { display: flex; flex-direction: column; min-width: 0; }
+.nx .nx-aside-label { font-size: 18px; font-weight: 700; line-height: 1.25; }
+.nx .nx-aside-blurb {
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--nx-ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.nx .nx-aside-panel { background: color-mix(in srgb, var(--nx-page) 90%, transparent); }
+.nx .nx-aside-card {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: 100%;
+  background: var(--nx-page);
+  border: 2px solid var(--nx-info-fg);
+  border-radius: 14px;
+  box-shadow: 0 6px 16px var(--nx-hairline);
+  overflow: hidden;
+}
+.nx .nx-aside-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px 4px 16px;
+  border-bottom: 1px solid var(--nx-hairline);
+}
+.nx .nx-aside-title { margin: 0; min-width: 0; font-size: 22px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.nx .nx-aside-close { flex: none; }
+.nx .nx-aside-body { min-height: 0; padding: 12px 16px 4px; overflow: auto; font-size: 18px; line-height: 1.45; }
+.nx .nx-aside-body p, .nx .nx-aside-body ul, .nx .nx-aside-body pre { margin: 0 0 12px; }
+.nx .nx-aside-body ul { padding-inline-start: 1.4em; }
+.nx .nx-aside-body pre {
+  padding: 10px 12px;
+  overflow: auto;
+  font: 16px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--nx-sunken);
+  border-radius: 8px;
+}
+.nx .nx-aside-body:focus-visible { outline: 3px solid var(--nx-info-fg); outline-offset: -3px; }
+
 @media (max-width: 600px) {
   .nx button { padding: 8px 10px; }
+  .nx .nx-aside-chip { padding: 6px 10px 6px 8px; }
   .nx .nx-caption { font-size: 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nx .nx-word, .nx .nx-depth-card { transition: none; }
-  .nx .nx-depth-card:hover { transform: none; }
+  .nx .nx-word, .nx .nx-depth-card, .nx .nx-aside-chip { transition: none; }
+  .nx .nx-depth-card:hover, .nx .nx-depth-card:focus-visible,
+  .nx .nx-aside-chip:hover, .nx .nx-aside-chip:focus-visible { transform: none; }
 }
 
 /* SVG utility classes for scenes and the kit. */

@@ -8,7 +8,7 @@ import tempfile
 from .bundle import build
 from .capture import Capture
 from .encoding import encode_frames
-from .story import declared_levels, declared_modes, load_story
+from .story import aside_frame, declared_levels, declared_modes, load_story
 
 
 def _positive(value: float, name: str) -> None:
@@ -65,6 +65,12 @@ def snapshots(directory: Path, no_voice: bool = False, width: int = 1280,
                     path = output / f"{where}-{index:02d}-{position['id']}.png"
                     path.write_bytes(browser.screenshot())
                     paths.append(path)
+        for aside in story.get("asides", []):
+            mode, level, index = aside_frame(story, aside)
+            browser.call("showAsides", mode, index, level, aside["id"])
+            path = output / f"aside-{aside['id']}.png"
+            path.write_bytes(browser.screenshot())
+            paths.append(path)
         browser.check_errors()
     return paths
 

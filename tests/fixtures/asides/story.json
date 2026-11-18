@@ -1,0 +1,187 @@
+{
+  "id": "asides",
+  "title": "Asides behind chips",
+  "lang": "en",
+  "levels": [
+    {
+      "id": "quick",
+      "label": "Quick",
+      "blurb": "Just the headline."
+    },
+    {
+      "id": "normal",
+      "label": "Normal",
+      "blurb": "The steps that matter."
+    },
+    {
+      "id": "full",
+      "label": "Full",
+      "blurb": "Every step, with the details."
+    }
+  ],
+  "modes": [
+    {
+      "id": "a",
+      "label": "Mode A"
+    },
+    {
+      "id": "b",
+      "label": "Mode B"
+    }
+  ],
+  "timing": {
+    "end": 10,
+    "unit": "ms",
+    "realMsPerUnit": 30,
+    "holdMs": 1600,
+    "speeds": [
+      0.5,
+      1
+    ]
+  },
+  "atRest": {
+    "mode": "a",
+    "t": 10,
+    "caption": "Press Play to start."
+  },
+  "intro": [
+    {
+      "id": "hello",
+      "caption": "Hello, here is the setup."
+    },
+    {
+      "id": "setup",
+      "levels": [
+        "normal",
+        "full"
+      ],
+      "caption": "A little more about the setup."
+    }
+  ],
+  "moments": [
+    {
+      "id": "s1",
+      "t": 0,
+      "levels": [
+        "normal",
+        "full"
+      ],
+      "sfx": "whoosh",
+      "caption": "The first step."
+    },
+    {
+      "id": "s2",
+      "t": 2,
+      "heart": true,
+      "caption": "The heart of the story."
+    },
+    {
+      "id": "s3",
+      "t": 4,
+      "caption": "The next step."
+    },
+    {
+      "id": "s4",
+      "t": 6,
+      "caption": "The step after that."
+    },
+    {
+      "id": "s5",
+      "t": 8,
+      "modes": [
+        "a"
+      ],
+      "levels": [
+        "full"
+      ],
+      "sfx": "ding",
+      "caption": "A detail only mode A shows."
+    }
+  ],
+  "asides": [
+    {
+      "id": "timed",
+      "label": "Why it matters",
+      "blurb": "A short word on the heart of the story.",
+      "from": "s2",
+      "to": "s3",
+      "body": [
+        {
+          "type": "p",
+          "text": "This aside is on offer only from the heart of the story to the step after it."
+        },
+        {
+          "type": "p",
+          "text": "It is not narrated, and closing it carries on where the story was."
+        }
+      ]
+    },
+    {
+      "id": "late",
+      "label": "After the fact",
+      "blurb": "Open-ended: it stays from here to the end.",
+      "from": "s4",
+      "modes": [
+        "a"
+      ],
+      "body": [
+        {
+          "type": "p",
+          "text": "Mode A only, from the fourth step on."
+        }
+      ]
+    },
+    {
+      "id": "tour",
+      "label": "The tour",
+      "blurb": "Hidden at the Quick level, where its first step is missing.",
+      "from": "s1",
+      "to": "s3",
+      "levels": [
+        "normal",
+        "full"
+      ],
+      "body": [
+        {
+          "type": "p",
+          "text": "Both ends must be in the list the viewer plays."
+        }
+      ]
+    },
+    {
+      "id": "always",
+      "label": "What is a stage?",
+      "blurb": "Untimed: on offer all the time, even at rest.",
+      "body": [
+        {
+          "type": "p",
+          "text": "A stage is the picture area of the figure. The chips sit in its top corner and never move it."
+        },
+        {
+          "type": "list",
+          "items": [
+            "Chips are buttons you can reach with the keyboard.",
+            "Clicking one pauses the story.",
+            "Close, or Escape, brings you back."
+          ]
+        },
+        {
+          "type": "code",
+          "text": "explainer snapshots <folder>"
+        },
+        {
+          "type": "p",
+          "text": "A long body scrolls inside the panel, so the panel never grows past the stage, even on a phone."
+        },
+        {
+          "type": "p",
+          "text": "Filler to make the body long enough to need scrolling at a narrow width: the quick brown fox jumps over the lazy dog, again and again and again."
+        },
+        {
+          "type": "p",
+          "text": "More filler: the quick brown fox jumps over the lazy dog, again and again and again, until the panel has to scroll."
+        }
+      ]
+    }
+  ]
+}

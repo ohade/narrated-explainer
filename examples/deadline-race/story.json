@@ -10,6 +10,32 @@
     { "id": "walkthrough", "label": "Walkthrough", "blurb": "Adds the queue and the timeouts, so you see where the time goes." },
     { "id": "deep-dive", "label": "Deep dive", "blurb": "Every step, including the safety buffer and Service A's early reply." }
   ],
+  "asides": [
+    {
+      "id": "why-the-queue",
+      "label": "Why the queue?",
+      "blurb": "Why a busy Gateway makes a request wait before any partner is asked.",
+      "from": "queue",
+      "to": "fan-out",
+      "body": [
+        { "type": "p", "text": "The Gateway has a limited number of workers. When more requests arrive than the workers can start on, the extra ones wait in line, and each waits for its turn before the Gateway can do anything with it." },
+        { "type": "p", "text": "That wait counts against the deadline, because the App's stopwatch started when it sent the request. By the time the Gateway reaches the request and asks Service A and Service B, part of the budget is already gone." }
+      ]
+    },
+    {
+      "id": "what-is-tmax",
+      "label": "What is tmax?",
+      "blurb": "The time limit the Gateway works against, and where it comes from.",
+      "body": [
+        { "type": "p", "text": "tmax is the longest time the whole request may take, counted from the moment the App sends it. Here it is 300 ms." },
+        { "type": "list", "items": [
+          "The first 200 ms are the Gateway's own budget for its work.",
+          "The last 100 ms are a safety buffer on top.",
+          "Whatever has not been spent when the Gateway asks a service is what that service may use."
+        ] }
+      ]
+    }
+  ],
   "modes": [
     { "id": "before", "label": "Before" },
     { "id": "after", "label": "After" }
