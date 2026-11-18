@@ -126,13 +126,14 @@ class Capture:
         self.check_errors()
         return image
 
-    def prepare_video(self, modes: list[str]) -> None:
-        """Reserve the tallest caption; keep the progress markers visible."""
+    def prepare_video(self, modes: list[str], level: str | None = None) -> None:
+        """Reserve the tallest caption of `level` (a story without levels passes none); keep the progress markers visible."""
         self.page.add_style_tag(content=VIDEO_CSS)
+        level_args = () if level is None else (level,)
         height = self.figure.locator("figcaption").bounding_box()["height"]
         for mode in modes:
-            for index, _ in enumerate(self.call("positions", mode)):
-                self.call("goto", mode, index)
+            for index, _ in enumerate(self.call("positions", mode, *level_args)):
+                self.call("goto", mode, index, *level_args)
                 height = max(height, self.figure.locator("figcaption").bounding_box()["height"])
         self.page.add_style_tag(content=f"figure.nx figcaption {{ min-height: {height}px !important; }}")
         self.check_errors()

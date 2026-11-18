@@ -652,7 +652,7 @@ const NARRATION = {
   },
 };
 
-function mountFake(narration = NARRATION, { storyOverride = story, fullscreen = false } = {}) {
+function mountFake(narration = NARRATION, { storyOverride = story, fullscreen = false, drawLog = null, globals = {} } = {}) {
   const audios = [];
   const frames = [];
   class FakeAudio {
@@ -674,8 +674,19 @@ function mountFake(narration = NARRATION, { storyOverride = story, fullscreen = 
     requestAnimationFrame: (callback) => { frames.push(callback); return frames.length; },
     cancelAnimationFrame() {},
     Audio: FakeAudio,
+    ...globals,
   });
   vm.runInContext(read('tests/fixtures/mini/scene.js'), context, { filename: 'scene.js' });
+  if (drawLog) {
+    // Records the context the player hands to every draw call.
+    const factory = context.NarratedExplainer._scene;
+    context.NarratedExplainer._scene = (sceneStory, kit) => {
+      const scene = factory(sceneStory, kit);
+      const draw = scene.draw;
+      scene.draw = (state, ctx) => { drawLog.push({ level: ctx.level, depth: ctx.depth }); return draw(state, ctx); };
+      return scene;
+    };
+  }
   const doc = fakeDocument();
   const figure = doc.createElement('figure');
   if (fullscreen) figure.requestFullscreen = () => {};
@@ -983,4 +994,291 @@ test('a story can override the More and Replay labels', () => {
   byClass(figure, 'nx-play')[0].click();
   runFrames();
   assert.equal(labelOf(byClass(figure, 'nx-play')[0]), 'Nochmal');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Dive levels: a subset of the steps per level, a start menu, the Depth chip and an end card.
+const LEVELS = [
+  { id: 'glance', label: 'Glance', blurb: 'Just the idea.' },
+  { id: 'tour', label: 'Tour', blurb: 'The main steps.' },
+  { id: 'deep', label: 'Deep', blurb: 'Every step.' },
+];
+const LEVEL_TAGS = { 'intro-track': ['tour', 'deep'], bump: ['deep'], half: ['tour', 'deep'] };
+const tagged = (list) => list.map((e) => (LEVEL_TAGS[e.id] ? { ...e, levels: LEVEL_TAGS[e.id] } : e));
+const levelsStory = { ...story, levels: LEVELS, intro: tagged(story.intro), moments: tagged(story.moments) };
+const makeLevels = (durations = {}, options = { reduced: false }) => NX._createController(levelsStory, durations, options);
+const levelIds = (c, mode, level) => plain(ids(c.positions(mode, level)));
+const mountLevels = (options = {}) => mountFake(null, { storyOverride: levelsStory, ...options });
+const card = (figure, label) => required(byClass(figure, 'nx-depth-card').find((b) => b.textContent.includes(label)), 'a ' + label + ' card');
+const chipOf = (figure) => required(byClass(figure, 'nx-depth')[0], 'a Depth chip');
+const menuPanel = (figure) => required(byClass(figure, 'nx-depth-menu')[0], 'a start menu');
+const endCard = (figure) => required(byClass(figure, 'nx-depth-end')[0], 'an end card');
+const isPlaying = (figure) => labelOf(byClass(figure, 'nx-play')[0]) === 'Pause';
+
+test('levels: positions are built per mode and level, intro steps included', () => {
+  const c = makeLevels();
+  assert.deepEqual(levelIds(c, 'smooth', 'glance'), ['intro-ball', 'start', 'finish']);
+  assert.deepEqual(levelIds(c, 'smooth', 'tour'), ['intro-ball', 'intro-track', 'start', 'half', 'finish']);
+  assert.deepEqual(levelIds(c, 'bumpy', 'tour'), ['intro-ball', 'intro-track', 'start', 'half', 'finish']);
+  assert.deepEqual(levelIds(c, 'bumpy', 'deep'), ['intro-ball', 'intro-track', 'start', 'half', 'bump', 'finish']);
+  assert.deepEqual(plain(c.positions('smooth', 'glance').map((p) => p.index)), [0, 1, 2]);
+  assert.deepEqual(levelIds(c, 'smooth'), levelIds(c, 'smooth', 'deep'), 'with no level the deepest one is used');
+  assert.deepEqual(plain(c.levels()), ['glance', 'tour', 'deep']);
+});
+
+test('intro steps honour their modes, and a story without levels has no levels', () => {
+  const modal = { ...story, intro: [{ ...story.intro[0], modes: ['bumpy'] }, story.intro[1]] };
+  const c = NX._createController(modal, {}, { reduced: false });
+  assert.deepEqual(plain(ids(c.positions('smooth'))), ['intro-track', 'start', 'half', 'finish']);
+  assert.deepEqual(plain(ids(c.positions('bumpy'))), ['intro-ball', 'intro-track', 'start', 'half', 'bump', 'finish']);
+  assert.deepEqual(plain(make().levels()), []);
+  assert.equal(make().snapshot().level, null);
+  assert.equal(make().snapshot().depth, null);
+});
+
+test('a level switch keeps the place by id, else by story time', () => {
+  const c = makeLevels();
+  assert.equal(c.snapshot().level, 'deep');
+  assert.equal(c.snapshot().depth, 2);
+  c.jump(3, 0); // half in the deep list
+  c.setLevel('glance', 10);
+  assert.deepEqual([c.snapshot().level, c.snapshot().depth], ['glance', 0]);
+  assert.deepEqual(where(c), at('between', 1, null, 50, false), 'half is not in Glance: the last step passed by time');
+  c.setLevel('deep', 20);
+  assert.deepEqual(where(c), at('between', 2, null, 50, false));
+  c.jump(4, 30); // finish
+  c.setLevel('glance', 40);
+  assert.deepEqual(where(c), at('moment', 2, 'finish', 90, false), 'found by id');
+  c.setLevel('tour', 50);
+  c.jump(2, 60); // start in Tour
+  c.setLevel('glance', 70);
+  assert.deepEqual(where(c), at('moment', 1, 'start', 0, false), 'a same-index lookup would land on finish');
+  c.setLevel('nope', 80);
+  assert.equal(c.snapshot().level, 'glance');
+});
+
+test('a mode switch finds an intro step by id, not by index', () => {
+  const modal = { ...story, intro: [{ ...story.intro[0], modes: ['bumpy'] }, story.intro[1]] };
+  const c = NX._createController(modal, {}, { reduced: false });
+  c.setMode('bumpy', 0);
+  c.jump(1, 0); // intro-track is second in bumpy
+  c.setMode('smooth', 10);
+  assert.deepEqual(where(c), at('intro', 0, 'intro-track', 0, false));
+});
+
+test('plan() of the shallowest level is shorter than the deepest, and the default is the deepest', () => {
+  const c = makeLevels();
+  const glance = plain(c.plan('smooth', 'glance'));
+  const deep = plain(c.plan('smooth', 'deep'));
+  assert.deepEqual(glance.segments.filter((s) => s.kind === 'hold').map((s) => s.at.id), ['intro-ball', 'start', 'finish']);
+  assert.equal(glance.duration, 6000);
+  assert.equal(deep.duration, 8000);
+  assert.deepEqual(plain(c.plan('smooth')), deep);
+  assert.ok(glance.duration < plain(c.plan('smooth', 'tour')).duration);
+});
+
+test('renderAt() and the live snapshot carry the level', () => {
+  const c = makeLevels();
+  const glance = c.renderAt('smooth', 2500, 'glance');
+  assert.deepEqual(plain([glance.at.id, glance.level, glance.depth]), ['start', 'glance', 0]);
+  const deep = c.renderAt('smooth', 2500, 'deep');
+  assert.deepEqual(plain([deep.at.id, deep.level, deep.depth]), ['intro-track', 'deep', 2]);
+  assert.equal(c.renderAt('smooth', 2500).level, 'deep');
+});
+
+test('the keyboard map has m for the menu', () => {
+  assert.deepEqual(['m', 'M'].map((key) => NX._keyAction({ key })), ['menu', 'menu']);
+});
+
+test('a story with levels opens on a start menu: one card per level with its step count and minutes', () => {
+  const { figure } = mountLevels();
+  assert.equal(menuPanel(figure).hidden, false);
+  assert.equal(endCard(figure).hidden, true);
+  const cards = byClass(figure, 'nx-depth-card');
+  assert.deepEqual(plain(cards.map((b) => b.tagName)), ['BUTTON', 'BUTTON', 'BUTTON']);
+  assert.deepEqual(byClass(figure, 'nx-depth-label').map((n) => n.textContent), ['Glance', 'Tour', 'Deep']);
+  assert.deepEqual(byClass(figure, 'nx-depth-blurb').map((n) => n.textContent), ['Just the idea.', 'The main steps.', 'Every step.']);
+  assert.deepEqual(byClass(figure, 'nx-depth-meta').map((n) => n.textContent),
+    ['3 steps, about 1 min', '5 steps, about 1 min', '5 steps, about 1 min']);
+  assert.equal(byClass(figure, 'nx-depth-title')[0].textContent, 'Choose how deep to go');
+  assert.equal(byClass(figure, 'nx-depth-restart')[0].hidden, true, 'nothing to start over yet');
+  assert.equal(seen(figure).play, 'Play', 'nothing autoplays');
+});
+
+test('the minutes are rounded up and follow the mode', () => {
+  const slow = { ...levelsStory, timing: { ...levelsStory.timing, holdMs: 30000 } };
+  const { figure } = mountFake(null, { storyOverride: slow });
+  assert.deepEqual(byClass(figure, 'nx-depth-meta').map((n) => n.textContent),
+    ['3 steps, about 2 min', '5 steps, about 3 min', '5 steps, about 3 min']);
+  byClass(figure, 'nx-mode').find((b) => b.textContent === 'Bumpy').click();
+  assert.deepEqual(byClass(figure, 'nx-depth-meta').map((n) => n.textContent),
+    ['3 steps, about 2 min', '5 steps, about 3 min', '6 steps, about 3 min']);
+});
+
+test('a story without levels has no menu, no Depth chip and no end card', () => {
+  const { figure, runFrames } = mountFake(null);
+  for (const cls of ['nx-depth-menu', 'nx-depth', 'nx-depth-end', 'nx-depth-card']) assert.equal(byClass(figure, cls).length, 0, cls);
+  figure.dispatch('keydown', { key: 'm' });
+  byClass(figure, 'nx-play')[0].click();
+  runFrames();
+  assert.equal(seen(figure).play, 'Replay');
+  assert.equal(byClass(figure, 'nx-depth-end').length, 0);
+});
+
+test('clicking a card sets the level and starts playing it', () => {
+  const { figure } = mountLevels();
+  card(figure, 'Glance').click();
+  assert.equal(menuPanel(figure).hidden, true);
+  assert.equal(isPlaying(figure), true);
+  const view = seen(figure);
+  assert.deepEqual(plain([view.markers, view.transcript.length, view.caption]), [3, 3, 'This is the ball.']);
+  assert.equal(chipOf(figure).textContent, 'Glance');
+  assert.equal(card(figure, 'Glance').getAttribute('aria-pressed'), 'true');
+  assert.equal(card(figure, 'Deep').getAttribute('aria-pressed'), 'false');
+});
+
+test('the Depth chip sits after the mode tabs and shows the current level', () => {
+  const { figure } = mountLevels();
+  const names = byClass(figure, 'nx-controls')[0].children.map((n) => (n.getAttribute('class') || n.tagName).split(' ')[0]);
+  assert.deepEqual(names, ['nx-group', 'nx-depth', 'nx-play', 'nx-prev', 'nx-next', 'nx-speed', 'nx-fullscreen', 'nx-more']);
+  assert.equal(chipOf(figure).textContent, 'Deep', 'the deepest level until one is chosen');
+  assert.equal(chipOf(figure).getAttribute('aria-label'), 'Depth: Deep');
+});
+
+test('the Depth chip and the m key reopen the menu and pause; choosing resumes from the kept place', () => {
+  const { figure, doc } = mountLevels();
+  card(figure, 'Glance').click();
+  byClass(figure, 'nx-next')[0].click(); // start, stepped
+  assert.equal(seen(figure).caption, 'The ball starts to roll.');
+  chipOf(figure).click();
+  assert.equal(menuPanel(figure).hidden, false);
+  assert.equal(seen(figure).play, 'Play');
+  assert.equal(chipOf(figure).getAttribute('aria-expanded'), 'true');
+  assert.equal(doc.focused, card(figure, 'Glance'), 'focus goes to the current level');
+  assert.equal(byClass(figure, 'nx-depth-restart')[0].hidden, false);
+  card(figure, 'Tour').click();
+  assert.equal(menuPanel(figure).hidden, true);
+  assert.equal(isPlaying(figure), true);
+  assert.equal(seen(figure).caption, 'The ball starts to roll.', 'the same step, found by id');
+  assert.equal(seen(figure).markers, 5);
+  figure.dispatch('keydown', { key: 'm' });
+  assert.equal(menuPanel(figure).hidden, false);
+  assert.equal(seen(figure).play, 'Play');
+  card(figure, 'Tour').click();
+  assert.equal(isPlaying(figure), true);
+});
+
+test('Escape closes the menu opened mid-story and returns focus to the chip', () => {
+  const { figure, doc } = mountLevels();
+  card(figure, 'Tour').click();
+  chipOf(figure).click();
+  const event = press(figure, card(figure, 'Tour'), 'Escape');
+  assert.equal(menuPanel(figure).hidden, true);
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(doc.focused, chipOf(figure));
+  assert.equal(seen(figure).play, 'Play', 'still paused');
+});
+
+test('Start over in the menu restarts the current level from its first step', () => {
+  const { figure } = mountLevels();
+  card(figure, 'Glance').click();
+  byClass(figure, 'nx-next')[0].click();
+  chipOf(figure).click();
+  byClass(figure, 'nx-depth-restart')[0].click();
+  assert.equal(menuPanel(figure).hidden, true);
+  assert.equal(isPlaying(figure), true);
+  assert.equal(seen(figure).caption, 'This is the ball.');
+  assert.equal(seen(figure).markers, 3);
+});
+
+test('shortcuts do not fire while focus is on a menu card', () => {
+  const { figure } = mountFake(NARRATION, { storyOverride: levelsStory });
+  const voice = byClass(figure, 'nx-voice')[0];
+  assert.equal(press(figure, card(figure, 'Tour'), 'v').defaultPrevented, false);
+  assert.equal(press(figure, card(figure, 'Tour'), 'r').defaultPrevented, false);
+  assert.equal(voice.textContent, 'Voice: on');
+  assert.equal(seen(figure).play, 'Play');
+  press(figure, figure, 'v');
+  assert.equal(voice.textContent, 'Voice: off');
+});
+
+test('the end card offers Go deeper, Replay and Change depth, and Go deeper is hidden at the deepest level', () => {
+  const { figure, runFrames } = mountLevels();
+  card(figure, 'Glance').click();
+  runFrames();
+  assert.equal(endCard(figure).hidden, false);
+  assert.equal(seen(figure).play, 'Replay');
+  const deeper = byClass(figure, 'nx-depth-deeper')[0];
+  const names = endCard(figure).children.map((n) => n.getAttribute('class').split(' ')[0]);
+  assert.deepEqual(names, ['nx-depth-deeper', 'nx-depth-replay', 'nx-depth-change']);
+  assert.deepEqual(endCard(figure).children.map((n) => n.textContent), ['Go deeper', 'Replay', 'Change depth']);
+  assert.equal(deeper.hidden, false);
+  deeper.click();
+  assert.equal(chipOf(figure).textContent, 'Tour');
+  assert.equal(endCard(figure).hidden, true);
+  assert.equal(isPlaying(figure), true);
+  assert.equal(seen(figure).caption, 'This is the ball.');
+  runFrames();
+  assert.equal(endCard(figure).hidden, false);
+  byClass(figure, 'nx-depth-deeper')[0].click();
+  assert.equal(chipOf(figure).textContent, 'Deep');
+  runFrames();
+  assert.equal(endCard(figure).hidden, false);
+  assert.equal(byClass(figure, 'nx-depth-deeper')[0].hidden, true, 'nothing deeper than the deepest');
+});
+
+test('the end card Replay plays the level again; Change depth opens the menu', () => {
+  const { figure, runFrames } = mountLevels();
+  card(figure, 'Deep').click();
+  runFrames();
+  byClass(figure, 'nx-depth-replay')[0].click();
+  assert.equal(endCard(figure).hidden, true);
+  assert.equal(isPlaying(figure), true);
+  assert.equal(seen(figure).caption, 'This is the ball.');
+  runFrames();
+  byClass(figure, 'nx-depth-change')[0].click();
+  assert.equal(endCard(figure).hidden, true);
+  assert.equal(menuPanel(figure).hidden, false);
+  assert.equal(seen(figure).play, 'Replay', 'the story stays finished until a level is chosen');
+  card(figure, 'Glance').click();
+  assert.equal(isPlaying(figure), true);
+  assert.equal(seen(figure).markers, 3);
+});
+
+test('draw receives the level id and depth; without levels both are null', () => {
+  const log = [];
+  const { figure } = mountLevels({ drawLog: log });
+  card(figure, 'Tour').click();
+  assert.deepEqual(plain(log[log.length - 1]), { level: 'tour', depth: 1 });
+  const plainLog = [];
+  const bare = mountFake(null, { drawLog: plainLog });
+  byClass(bare.figure, 'nx-play')[0].click();
+  assert.deepEqual(plain(plainLog[plainLog.length - 1]), { level: null, depth: null });
+});
+
+test('the tool API takes a trailing level, defaults to the deepest and leaves no overlay on a frame', async () => {
+  const lengths = [];
+  class FakeOffline {
+    constructor(channels, length) { lengths.push(length); this.destination = {}; }
+    createGain() { return { connect() {} }; }
+    startRendering() { return Promise.resolve({ sampleRate: 48000, getChannelData: () => new Float32Array(2) }); }
+  }
+  const quiet = { ...levelsStory, intro: levelsStory.intro.map(({ sfx, ...e }) => e), moments: levelsStory.moments.map(({ sfx, ...e }) => e) };
+  const { player, figure } = mountFake(null, {
+    storyOverride: quiet, globals: { OfflineAudioContext: FakeOffline, btoa: (s) => Buffer.from(s, 'binary').toString('base64') },
+  });
+  assert.equal(menuPanel(figure).hidden, false);
+  assert.equal(player.positions('smooth', 'glance').length, 3);
+  assert.equal(player.positions('smooth').length, 5);
+  assert.ok(player.plan('smooth', 'glance').duration < player.plan('smooth').duration);
+  await player.soundtrack('smooth', 'glance');
+  await player.soundtrack('smooth');
+  assert.deepEqual(lengths, [6000 * 48, 8000 * 48]);
+  player.goto('smooth', 1, 'glance');
+  assert.deepEqual(plain(seen(figure).transcript.length), 3);
+  assert.equal(menuPanel(figure).hidden, true);
+  player.renderAt('smooth', 99999, 'glance');
+  assert.equal(seen(figure).play, 'Replay');
+  assert.equal(endCard(figure).hidden, true, 'the last frame of an export carries no end card');
+  assert.equal(menuPanel(figure).hidden, true);
 });

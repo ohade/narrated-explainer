@@ -19,6 +19,8 @@
     speed: 'Speed', mode: 'Mode', transcript: 'Transcript', fullscreen: 'Fullscreen',
     themeAuto: 'Theme: Auto', themeLight: 'Theme: Light', themeDark: 'Theme: Dark',
     more: 'More', replay: 'Replay',
+    depth: 'Depth', chooseDepth: 'Choose how deep to go', goDeeper: 'Go deeper', changeDepth: 'Change depth',
+    startOver: 'Start over', steps: 'steps', aboutMin: 'about {n} min',
   };
   // Control glyphs: static markup on a 24 px grid, drawn in the button's text colour. No story or
   // reader data ever goes into them.
@@ -48,13 +50,20 @@
     return story.modes && story.modes.length ? story.modes : [{ id: 'main', label: 'Main' }];
   }
 
-  // Intro steps in order, then the moments of `mode` sorted by t (stable for equal t).
-  function buildPositions(story, mode) {
-    const intro = (story.intro || []).map((s) => ({
+  function levelList(story) {
+    return Array.isArray(story.levels) ? story.levels : [];
+  }
+
+  // Intro steps in order, then the moments of `mode` sorted by t (stable for equal t). An entry
+  // without `modes` or `levels` belongs to every mode and level; `level` null selects every entry.
+  function buildPositions(story, mode, level) {
+    const listed = (ids, id) => !ids || id === null || ids.indexOf(id) !== -1;
+    const kept = (entry) => listed(entry.modes, mode) && listed(entry.levels, level);
+    const intro = (story.intro || []).filter(kept).map((s) => ({
       kind: 'intro', id: s.id, t: 0, caption: s.caption || '', sfx: s.sfx || null, holdMs: s.holdMs,
     }));
     const moments = (story.moments || [])
-      .filter((m) => !m.modes || m.modes.indexOf(mode) !== -1)
+      .filter(kept)
       .map((m) => ({ kind: 'moment', id: m.id, t: m.t, caption: m.caption || '', sfx: m.sfx || null, holdMs: m.holdMs }))
       .sort((a, b) => a.t - b.t);
     return intro.concat(moments).map((p, index) => Object.assign(p, { index }));
@@ -72,7 +81,7 @@
 
   const KEY_ACTIONS = {
     ' ': 'toggle', Spacebar: 'toggle', k: 'toggle', ArrowLeft: 'prev', ArrowRight: 'next',
-    r: 'restart', v: 'voice', s: 'sound', t: 'transcript', f: 'fullscreen',
+    r: 'restart', v: 'voice', s: 'sound', t: 'transcript', f: 'fullscreen', m: 'menu',
   };
 
   // Maps a keydown to an action name, or null. Digits 1-9 give `mode:<index>`.
@@ -94,9 +103,16 @@
     const msPerUnit = finite(timing.realMsPerUnit, 1);
     const baseHoldMs = finite(timing.holdMs, DEFAULT_HOLD_MS);
     const modeIds = modeList(story).map((m) => m.id);
+    const levelIds = levelList(story).map((l) => l.id);
+    // The level of a tool call that names none (or an unknown one): the deepest, so exports keep every step.
+    const deepest = levelIds.length ? levelIds[levelIds.length - 1] : null;
+    const levelOr = (level) => (levelIds.indexOf(level) === -1 ? deepest : level);
     const rest = story.atRest || {};
     const cache = {};
-    const listFor = (mode) => cache[mode] || (cache[mode] = buildPositions(story, mode));
+    const listFor = (mode, level) => {
+      const key = mode + '|' + level;
+      return cache[key] || (cache[key] = buildPositions(story, mode, level));
+    };
     const hasClip = (id) => Object.prototype.hasOwnProperty.call(durations, id);
     const clipMs = (id) => {
       const seconds = durations[id];
@@ -105,7 +121,7 @@
 
     const restMode = modeIds.indexOf(rest.mode) !== -1 ? rest.mode : modeIds[0];
     const s = {
-      mode: restMode, list: listFor(restMode), t: finite(rest.t, end),
+      mode: restMode, level: deepest, list: listFor(restMode, deepest), t: finite(rest.t, end),
       atRest: true, finished: false, playing: false, onPosition: false, stepped: false, index: -1,
       arrivedAt: -Infinity, holdUntil: 0, releaseAt: 0, clipPending: false, last: 0,
       speed: 1, voiceOn: true, reduced: Boolean(options && options.reduced), sfxPlayed: {},
@@ -217,16 +233,38 @@
       return s.index >= 0 ? s.list[s.index].caption : '';
     }
 
+    // Moves to another mode and/or level, keeping the place by position id, else by story time.
+    function retarget(mode, level, now) {
+      if (mode === s.mode && level === s.level) return;
+      const previous = s.onPosition ? s.list[s.index] : null;
+      s.mode = mode;
+      s.level = level;
+      s.list = listFor(mode, level);
+      s.clipPending = false;
+      if (s.atRest) return;
+      if (s.finished) { s.index = s.list.length - 1; return; }
+      if (previous) {
+        const same = s.list.findIndex((p) => p.id === previous.id);
+        if (same !== -1) { s.index = same; return; }
+      }
+      s.onPosition = false;
+      s.index = lastPassed(s.t);
+      s.last = now;
+    }
+
     const api = {
       get cue() { return cue; },
       modes: () => modeIds.slice(),
-      positions(mode) {
-        return listFor(mode || s.mode).map((p) => ({ kind: p.kind, index: p.index, id: p.id, t: p.t, caption: p.caption }));
+      levels: () => levelIds.slice(),
+      resolveLevel: levelOr,
+      positions(mode, level) {
+        return listFor(mode || s.mode, levelOr(level)).map((p) => ({ kind: p.kind, index: p.index, id: p.id, t: p.t, caption: p.caption }));
       },
       snapshot() {
         return {
-          mode: s.mode, t: s.t, at: at(), caption: caption(), playing: s.playing, reduced: s.reduced,
-          speed: s.speed, voiceOn: s.voiceOn, atRest: s.atRest, finished: s.finished, stepped: s.stepped,
+          mode: s.mode, level: s.level, depth: s.level === null ? null : levelIds.indexOf(s.level), t: s.t, at: at(),
+          caption: caption(), playing: s.playing, reduced: s.reduced, speed: s.speed, voiceOn: s.voiceOn,
+          atRest: s.atRest, finished: s.finished, stepped: s.stepped,
         };
       },
       play(now) {
@@ -273,20 +311,10 @@
         return s.last + (target - s.t) * msPerUnit / s.speed;
       },
       setMode(mode, now) {
-        if (modeIds.indexOf(mode) === -1 || mode === s.mode) return;
-        const previous = s.onPosition ? s.list[s.index] : null;
-        s.mode = mode;
-        s.list = listFor(mode);
-        s.clipPending = false;
-        if (s.atRest) return;
-        if (s.finished) { s.index = s.list.length - 1; return; }
-        if (previous) {
-          const same = previous.kind === 'intro' ? s.index : s.list.findIndex((p) => p.id === previous.id);
-          if (same !== -1) { s.index = same; return; }
-        }
-        s.onPosition = false;
-        s.index = lastPassed(s.t);
-        s.last = now;
+        if (modeIds.indexOf(mode) !== -1) retarget(mode, s.level, now);
+      },
+      setLevel(level, now) {
+        if (levelIds.indexOf(level) !== -1) retarget(s.mode, level, now);
       },
       // `now` (optional) rescales what is left of a hold and of the current motion to the new pace.
       setSpeed(speed, now) {
@@ -315,11 +343,11 @@
         s.sfxPlayed[name] = true;
         return true;
       },
-      plan(mode) {
+      plan(mode, level) {
         const segments = [];
         let hold = null;
         let move = null;
-        const { now } = simulate(mode, Infinity, (time, sim) => {
+        const { now } = simulate(mode, levelOr(level), Infinity, (time, sim) => {
           const snap = sim.snapshot();
           const onPosition = snap.playing && snap.at.kind !== 'between';
           if (hold && !(onPosition && sim.cue.seq === hold.seq)) { hold.segment.end = time; hold = null; }
@@ -338,8 +366,8 @@
       },
       // The frame at `ms` on the plan: a snapshot, motion from plan time, and `clipTime`, the
       // seconds into the narration clip being spoken at that frame (null when none is).
-      renderAt(mode, ms) {
-        const { sim, cueSeq, cueAt } = simulate(mode, ms, () => {});
+      renderAt(mode, ms, level) {
+        const { sim, cueSeq, cueAt } = simulate(mode, levelOr(level), ms, () => {});
         sim.tick(ms);
         const snap = sim.snapshot();
         const elapsed = ms - (sim.cue.seq === cueSeq ? cueAt : ms);
@@ -349,11 +377,12 @@
       },
     };
 
-    // Plays `mode` from the start at speed 1 with the voice on, on a fresh controller, ticking at
-    // exact event times up to `untilMs`; each clip "ends" at its duration plus PLAN_CLIP_TAIL_MS.
-    function simulate(mode, untilMs, onStep) {
+    // Plays `mode` at `level` from the start at speed 1 with the voice on, on a fresh controller, ticking
+    // at exact event times up to `untilMs`; each clip "ends" at its duration plus PLAN_CLIP_TAIL_MS.
+    function simulate(mode, level, untilMs, onStep) {
       const sim = createController(story, durations, { reduced: false });
       sim.setMode(mode, 0);
+      sim.setLevel(level, 0);
       let now = 0;
       let seen = 0;
       let seenAt = 0;
@@ -526,6 +555,63 @@
     return voice;
   }
 
+  // Dive levels: the Depth chip for the bar, and the start menu and end card that overlay the stage.
+  // It only builds and shows elements; `actions` (choose, startOver, toggle, deeper, replay, change)
+  // are the player's.
+  function createDepthUi(doc, labels, levels, uid, actions) {
+    const control = (parent, cls, text, handler) => {
+      const b = parent.appendChild(h(doc, 'button', { type: 'button', class: cls }, text));
+      b.addEventListener('click', handler);
+      return b;
+    };
+    const chip = h(doc, 'button', { type: 'button', class: 'nx-depth', 'aria-controls': uid + '-depth', title: labels.changeDepth });
+    chip.addEventListener('click', actions.toggle);
+    const menu = h(doc, 'div', { class: 'nx-overlay nx-depth-menu', id: uid + '-depth', role: 'group', 'aria-label': labels.chooseDepth });
+    menu.appendChild(h(doc, 'p', { class: 'nx-depth-title' }, labels.chooseDepth));
+    const row = menu.appendChild(h(doc, 'div', { class: 'nx-depth-cards' }));
+    const cards = levels.map((level, i) => {
+      const b = control(row, 'nx-depth-card', undefined, () => actions.choose(level.id));
+      const dots = b.appendChild(h(doc, 'span', { class: 'nx-depth-dots', 'aria-hidden': 'true' }));
+      levels.forEach((unused, j) => dots.appendChild(h(doc, 'span', { class: j <= i ? 'nx-dot nx-dot-on' : 'nx-dot' })));
+      b.appendChild(h(doc, 'span', { class: 'nx-depth-label' }, level.label));
+      b.appendChild(h(doc, 'span', { class: 'nx-depth-blurb' }, level.blurb));
+      return { id: level.id, button: b, meta: b.appendChild(h(doc, 'span', { class: 'nx-depth-meta' })) };
+    });
+    const startOver = control(menu, 'nx-depth-restart', labels.startOver, actions.startOver);
+    const end = h(doc, 'div', { class: 'nx-overlay nx-depth-end', role: 'group', 'aria-label': labels.depth });
+    const deeper = control(end, 'nx-depth-deeper', labels.goDeeper, actions.deeper);
+    control(end, 'nx-depth-replay', labels.replay, actions.replay);
+    control(end, 'nx-depth-change', labels.changeDepth, actions.change);
+    const set = (el, name, value) => { if (el.getAttribute(name) !== value) el.setAttribute(name, value); };
+    return {
+      chip,
+      menu,
+      end,
+      // `measure(levelId)` gives the step count and the minutes of that level in the current mode.
+      describe(measure) {
+        cards.forEach((card) => {
+          const { steps, minutes } = measure(card.id);
+          card.meta.textContent = steps + ' ' + labels.steps + ', ' + labels.aboutMin.replace('{n}', minutes);
+        });
+      },
+      // Shows the overlay named by `overlay` ('menu', 'end' or null) and the level `snap` is on.
+      render(snap, overlay) {
+        const name = levels[snap.depth].label;
+        if (chip.textContent !== name) chip.textContent = name;
+        set(chip, 'aria-label', labels.depth + ': ' + name);
+        set(chip, 'aria-expanded', String(overlay === 'menu'));
+        menu.hidden = overlay !== 'menu';
+        end.hidden = overlay !== 'end';
+        startOver.hidden = snap.atRest;
+        deeper.hidden = snap.depth >= levels.length - 1;
+        cards.forEach((card) => set(card.button, 'aria-pressed', String(!snap.atRest && card.id === snap.level)));
+      },
+      focusCard(id) {
+        (cards.find((card) => card.id === id) || cards[0]).button.focus();
+      },
+    };
+  }
+
   let documentKeysInstalled = false;
   function installDocumentKeys(doc) {
     if (documentKeysInstalled) return;
@@ -554,8 +640,18 @@
     const scene = factory(story, NX.kit || {});
     const labels = Object.assign({}, DEFAULT_LABELS, story.labels || {});
     const modes = modeList(story);
+    const levels = levelList(story);
     const uid = 'nx-' + (story.id || 'story') + '-' + (NX.players.length + 1);
-    const ui = { soundOn: true, frameRequest: 0, lastCue: 0, captionKey: '', wordSpans: [], word: -1 };
+    // `overlay` is what covers the stage: the start menu, the end card, or nothing.
+    const ui = { soundOn: true, frameRequest: 0, lastCue: 0, captionKey: '', wordSpans: [], word: -1, overlay: levels.length ? 'menu' : null, describedMode: null };
+    const depthUi = levels.length ? createDepthUi(doc, labels, levels, uid, {
+      choose: (id) => chooseLevel(id),
+      startOver: () => restart(),
+      toggle: () => toggleMenu(),
+      deeper: () => goDeeper(),
+      replay: () => restart(),
+      change: () => openMenu(),
+    }) : null;
 
     figure.classList.add('nx');
     figure.setAttribute('tabindex', '-1');
@@ -577,6 +673,7 @@
         modeButtons.push([m.id, b]);
       });
     }
+    if (depthUi) controls.appendChild(depthUi.chip);
     const iconButton = (parent, cls, label, glyph) => {
       const b = button(parent, cls + ' nx-icon', '');
       setName(b, label);
@@ -613,13 +710,16 @@
     const transcriptList = transcript.appendChild(h(doc, 'ol', {}));
     const captionEl = figure.appendChild(h(doc, 'figcaption', { class: 'nx-caption', 'aria-live': 'polite', id: uid + '-caption' }));
     scene.build(stage);
+    if (depthUi) { stage.appendChild(depthUi.menu); stage.appendChild(depthUi.end); }
 
     let markers = [];
     let transcriptItems = [];
     function buildLists() {
       progress.textContent = '';
       transcriptList.textContent = '';
-      const list = c.positions();
+      const snap = c.snapshot();
+      const list = c.positions(snap.mode, snap.level);
+      describeLevels(snap.mode);
       markers = list.map((p, i) => {
         const b = button(progress, 'nx-marker nx-marker-' + p.kind, '', { 'aria-label': (i + 1) + ' / ' + list.length + ': ' + p.caption });
         b.addEventListener('click', () => jumpTo(i));
@@ -631,6 +731,16 @@
         b.addEventListener('click', () => jumpTo(i));
         return b;
       });
+    }
+
+    // The start menu's step counts and minutes depend on the mode, so they are made again when it changes.
+    function describeLevels(mode) {
+      if (!depthUi || ui.describedMode === mode) return;
+      ui.describedMode = mode;
+      depthUi.describe((id) => ({
+        steps: c.positions(mode, id).length,
+        minutes: Math.max(1, Math.ceil(c.plan(mode, id).duration / 60000)),
+      }));
     }
 
     // Audio ----------------------------------------------------------------------------------
@@ -699,10 +809,12 @@
     // Draws `snap` (live or a tool frame) with its controls, caption and highlighted word.
     function render(snap, motion, sfx, word) {
       scene.draw(scene.stateAt(snap.mode, snap.t), {
-        mode: snap.mode, t: snap.t, at: snap.at, playing: snap.playing, reduced: snap.reduced, motion, sfx,
+        mode: snap.mode, level: snap.level, depth: snap.depth, t: snap.t, at: snap.at, playing: snap.playing,
+        reduced: snap.reduced, motion, sfx,
       });
       renderCaption(snap);
       renderControls(snap);
+      if (depthUi) depthUi.render(snap, ui.overlay);
       renderWord(word);
     }
 
@@ -716,6 +828,7 @@
     function frame(now) {
       ui.frameRequest = 0;
       c.tick(now);
+      if (depthUi && !ui.overlay && c.snapshot().finished) ui.overlay = 'end';
       handleCue();
       renderLive(now);
       if (c.snapshot().playing) ui.frameRequest = root.requestAnimationFrame(frame);
@@ -736,15 +849,49 @@
     // Actions ----------------------------------------------------------------------------------
     function togglePlay() {
       unlock();
+      ui.overlay = null;
       if (c.snapshot().playing) { c.pause(clock()); stopClip(); } else c.play(clock());
       update();
     }
-    function restart() { more.open = false; unlock(); stopClip(); c.restart(clock()); update(); }
-    function step(direction) { unlock(); stopClip(); c.step(direction, clock()); update(); }
-    function jumpTo(index) { unlock(); stopClip(); c.jump(index, clock()); update(); }
+    function restart() { more.open = false; ui.overlay = null; unlock(); stopClip(); c.restart(clock()); update(); }
+    function step(direction) { unlock(); ui.overlay = null; stopClip(); c.step(direction, clock()); update(); }
+    function jumpTo(index) { unlock(); ui.overlay = null; stopClip(); c.jump(index, clock()); update(); }
+    // Dive levels: the menu pauses; choosing a level keeps the place by id (else by time) and plays.
+    function openMenu() {
+      unlock();
+      c.pause(clock());
+      stopClip();
+      ui.overlay = 'menu';
+      update();
+      depthUi.focusCard(c.snapshot().level);
+    }
+    function closeMenu() {
+      ui.overlay = c.snapshot().finished ? 'end' : null;
+      update();
+      depthUi.chip.focus();
+    }
+    function toggleMenu() {
+      if (ui.overlay === 'menu' && !c.snapshot().atRest) closeMenu();
+      else openMenu();
+    }
+    function chooseLevel(id) {
+      unlock();
+      stopClip();
+      ui.overlay = null;
+      c.setLevel(id, clock());
+      buildLists();
+      c.play(clock());
+      playButton.focus();
+      update();
+    }
+    function goDeeper() {
+      const next = levels[c.snapshot().depth + 1];
+      if (next) chooseLevel(next.id);
+    }
     function selectMode(id) {
       unlock();
       if (id === c.snapshot().mode) return; // the controller ignores it; keep the clip playing
+      if (ui.overlay === 'end') ui.overlay = null;
       stopClip();
       c.setMode(id, clock());
       buildLists();
@@ -845,6 +992,7 @@
     const KEY_HANDLERS = {
       toggle: togglePlay, prev: () => step(-1), next: () => step(1), restart, voice: () => { if (narration) toggleVoice(); },
       sound: toggleSound, transcript: toggleTranscript, fullscreen: toggleFullscreen,
+      menu: () => { if (depthUi) openMenu(); },
     };
 
     function onKey(event) {
@@ -855,8 +1003,14 @@
         event.preventDefault();
         return;
       }
-      // The select and the More widget keep their own keys (Space opens the menu, letters pick items).
-      if (isTypingTarget(event.target) || more.contains(event.target)) return;
+      if (event.key === 'Escape' && depthUi && ui.overlay === 'menu' && !c.snapshot().atRest) {
+        closeMenu();
+        event.preventDefault();
+        return;
+      }
+      // The select, the More widget and the depth cards keep their own keys (Space opens the menu, letters pick items).
+      const inDepth = depthUi && (depthUi.menu.contains(event.target) || depthUi.end.contains(event.target));
+      if (isTypingTarget(event.target) || more.contains(event.target) || inDepth) return;
       const action = keyAction(event);
       if (!action) return;
       // Space on a focused button already clicks it.
@@ -874,12 +1028,15 @@
     installDocumentKeys(doc);
 
     // Tool API -------------------------------------------------------------------------------
-    // Stops playback silently and shows `mode`'s markers and transcript, for goto and renderAt.
-    function showMode(mode) {
+    // Stops playback silently and shows `mode` at `level` (default: the deepest) with its markers and
+    // transcript and no overlay, for goto and renderAt.
+    function showMode(mode, level) {
       c.pause(clock());
       stopClip();
       if (ui.frameRequest) { root.cancelAnimationFrame(ui.frameRequest); ui.frameRequest = 0; }
+      ui.overlay = null;
       c.setMode(mode, clock());
+      c.setLevel(c.resolveLevel(level), clock());
       buildLists();
     }
 
@@ -887,21 +1044,21 @@
       figure,
       story,
       _onKey: onKey,
-      positions: (mode) => c.positions(mode),
-      goto(mode, index) {
-        showMode(mode);
+      positions: (mode, level) => c.positions(mode, level),
+      goto(mode, index, level) {
+        showMode(mode, level);
         c.jump(index, clock());
         ui.lastCue = c.cue.seq; // draw only: no narration, no cue
         renderLive(clock());
       },
-      plan: (mode) => c.plan(mode),
-      renderAt(mode, ms) {
-        showMode(mode);
-        const f = c.renderAt(mode, ms);
+      plan: (mode, level) => c.plan(mode, level),
+      renderAt(mode, ms, level) {
+        showMode(mode, level);
+        const f = c.renderAt(mode, ms, level);
         const words = f.clipTime === null ? null : (clips[f.at.id] || {}).words;
         render(f, f.motion, () => {}, words ? wordIndexAt(words, f.clipTime) : -1);
       },
-      soundtrack: (mode) => renderSoundtrack(c.plan(mode), clips, NX.sfx),
+      soundtrack: (mode, level) => renderSoundtrack(c.plan(mode, level), clips, NX.sfx),
     };
 
     buildLists();

@@ -8,7 +8,7 @@ import tempfile
 from .bundle import build
 from .capture import Capture
 from .encoding import encode_frames
-from .story import load_story
+from .story import declared_levels, declared_modes, load_story
 
 
 def _positive(value: float, name: str) -> None:
@@ -31,8 +31,9 @@ def _validate_capture(width: int, scheme: str) -> None:
         raise ValueError("Scheme must be light or dark")
 
 
-def _modes(story: dict) -> list[str]:
-    return [mode["id"] for mode in story.get("modes", [{"id": "main"}])]
+def _level_args(level: str | None) -> tuple:
+    """The trailing player-API argument for `level`; a story without levels passes none."""
+    return () if level is None else (level,)
 
 
 def snapshots(directory: Path, no_voice: bool = False, width: int = 1280,
@@ -53,22 +54,25 @@ def snapshots(directory: Path, no_voice: bool = False, width: int = 1280,
         rest = output / "rest.png"
         rest.write_bytes(browser.screenshot())
         paths.append(rest)
-        for mode in _modes(story):
-            for index, position in enumerate(browser.call("positions", mode)):
-                browser.call("goto", mode, index)
-                if browser.caption() != position["caption"]:
-                    raise RuntimeError(f"Rendered caption differs from position: {mode}/{position['id']}")
-                path = output / f"{mode}-{index:02d}-{position['id']}.png"
-                path.write_bytes(browser.screenshot())
-                paths.append(path)
+        for mode in declared_modes(story):
+            for level in declared_levels(story) or [None]:
+                where = mode if level is None else f"{mode}-{level}"
+                level_args = _level_args(level)
+                for index, position in enumerate(browser.call("positions", mode, *level_args)):
+                    browser.call("goto", mode, index, *level_args)
+                    if browser.caption() != position["caption"]:
+                        raise RuntimeError(f"Rendered caption differs from position: {where}/{position['id']}")
+                    path = output / f"{where}-{index:02d}-{position['id']}.png"
+                    path.write_bytes(browser.screenshot())
+                    paths.append(path)
         browser.check_errors()
     return paths
 
 
-def _frames(browser, mode, duration, fps):
+def _frames(browser, mode, duration, fps, level_args=()):
     dimensions = None
     for ms in frame_times(duration, fps):
-        browser.call("renderAt", mode, ms)
+        browser.call("renderAt", mode, ms, *level_args)
         image = browser.screenshot()
         if image.startswith(b"\x89PNG\r\n\x1a\n"):
             current = struct.unpack(">II", image[16:24])
@@ -80,7 +84,7 @@ def _frames(browser, mode, duration, fps):
 
 def video(directory: Path, mode: str | None = None, fps: float | None = None,
           format: str = "mp4", width: int | None = None, scheme: str = "light",
-          out: Path | None = None, no_voice: bool = False) -> dict:
+          out: Path | None = None, no_voice: bool = False, level: str | None = None) -> dict:
     if format not in ("mp4", "gif"):
         raise ValueError("Format must be mp4 or gif")
     fps = fps if fps is not None else (12 if format == "gif" else 30)
@@ -89,24 +93,31 @@ def video(directory: Path, mode: str | None = None, fps: float | None = None,
     _validate_capture(width, scheme)
     directory = Path(directory)
     story = load_story(directory)
-    mode = mode if mode is not None else _modes(story)[0]
-    if mode not in _modes(story):
+    mode = mode if mode is not None else declared_modes(story)[0]
+    if mode not in declared_modes(story):
         raise ValueError(f"Unknown mode: {mode}")
+    levels = declared_levels(story)
+    if level is not None and level not in levels:
+        raise ValueError(f"Unknown level: {level}" if levels else "Story has no levels")
+    # An explicit level is part of the default file name; the default level is the deepest, so every step plays.
+    named = "" if level is None else f"-{level}"
+    level = level if level is not None else (levels[-1] if levels else None)
+    level_args = _level_args(level)
     html = build(directory, no_voice=no_voice)
-    output = Path(out) if out is not None else directory / "dist" / f"{story['id']}-{mode}.{format}"
+    output = Path(out) if out is not None else directory / "dist" / f"{story['id']}-{mode}{named}.{format}"
     output.parent.mkdir(parents=True, exist_ok=True)
     with Capture(html, width=width, scheme=scheme) as browser:
-        duration = browser.call("plan", mode)["duration"]
+        duration = browser.call("plan", mode, *level_args)["duration"]
         _positive(duration, "Plan duration")
         count = math.ceil(duration * fps / 1000)
-        browser.prepare_video([mode])
+        browser.prepare_video([mode], *level_args)
         audio = None
         if format != "gif":
-            soundtrack = browser.call("soundtrack", mode)
+            soundtrack = browser.call("soundtrack", mode, *level_args)
             audio = base64.b64decode(soundtrack["wavBase64"], validate=True)
         with tempfile.TemporaryDirectory(prefix=".explainer-video-", dir=output.parent) as temporary:
             staged = Path(temporary) / ("video." + format)
-            encode_frames(_frames(browser, mode, duration, fps), staged, fps, count, format, audio)
+            encode_frames(_frames(browser, mode, duration, fps, level_args), staged, fps, count, format, audio)
             browser.check_errors()
             staged.replace(output)
     return {"path": output, "duration_ms": duration, "frames": count,

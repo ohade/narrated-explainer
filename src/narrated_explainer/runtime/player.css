@@ -177,7 +177,7 @@
 .nx .nx-progress .nx-marker[aria-current="step"]::before { height: 16px; margin-top: -8px; }
 
 /* The player sets max-width so the bar, stage and caption fit the window; auto margins centre it. */
-.nx .nx-stage { margin: 12px auto 0; min-width: 0; }
+.nx .nx-stage { position: relative; margin: 12px auto 0; min-width: 0; }
 .nx .nx-stage svg { display: block; width: 100%; max-width: 100%; height: auto; }
 
 .nx .nx-caption { margin: 12px 0 0; min-height: 3em; font-size: 22px; line-height: 1.45; color: var(--nx-ink); }
@@ -197,13 +197,59 @@
 }
 .nx .nx-transcript .nx-transcript-item[aria-current="step"] { background: var(--nx-info-bg); color: var(--nx-info-fg); }
 
+/* Dive levels: the Depth chip in the bar, and the start menu and end card over the stage. The overlays
+   are out of flow, so showing or hiding them never moves the stage. */
+.nx .nx-depth { border-radius: 999px; padding-inline: 16px; font-weight: 700; }
+.nx .nx-depth::after { content: '\25BE'; margin-inline-start: 8px; }
+.nx .nx-depth[aria-expanded="true"] { color: var(--nx-info-fg); background: var(--nx-info-bg); border-color: var(--nx-info-fg); }
+.nx .nx-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px;
+  overflow: auto;
+  background: color-mix(in srgb, var(--nx-page) 82%, transparent);
+}
+.nx .nx-overlay[hidden] { display: none; }
+.nx .nx-depth-title { margin: 0; font-size: 24px; font-weight: 700; text-align: center; }
+.nx .nx-depth-cards { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; width: 100%; }
+.nx .nx-depth-card {
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 300px;
+  padding: 12px 14px;
+  text-align: start;
+  background: var(--nx-page);
+  border-width: 2px;
+  border-radius: 12px;
+  transition: transform 140ms ease, border-color 140ms ease;
+}
+.nx .nx-depth-card[aria-pressed="true"] { font-weight: 400; }
+.nx .nx-depth-card:hover { transform: translateY(-3px); border-color: var(--nx-info-fg); }
+.nx .nx-depth-label { font-size: 22px; font-weight: 700; }
+.nx .nx-depth-blurb { font-size: 18px; color: var(--nx-ink-2); }
+.nx .nx-depth-meta { font-size: 16px; color: var(--nx-ink-2); }
+.nx .nx-depth-dots { display: flex; gap: 5px; }
+.nx .nx-dot { width: 12px; height: 12px; border: 2px solid var(--nx-info-fg); border-radius: 50%; }
+.nx .nx-dot-on { background: var(--nx-info-fg); }
+.nx .nx-depth-end { flex-direction: row; flex-wrap: wrap; }
+
 @media (max-width: 600px) {
   .nx button { padding: 8px 10px; }
   .nx .nx-caption { font-size: 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nx .nx-word { transition: none; }
+  .nx .nx-word, .nx .nx-depth-card { transition: none; }
+  .nx .nx-depth-card:hover { transform: none; }
 }
 
 /* SVG utility classes for scenes and the kit. */

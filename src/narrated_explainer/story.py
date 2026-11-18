@@ -7,7 +7,8 @@ import re
 
 ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 CUES = set("click pop whoosh tick ding success fail alarm wind thud".split())
-LABELS = set("play pause replay restart prev next voiceOn voiceOff soundOn soundOff speed mode transcript fullscreen more themeAuto themeLight themeDark".split())
+LABELS = set("play pause replay restart prev next voiceOn voiceOff soundOn soundOff speed mode transcript fullscreen more themeAuto themeLight themeDark "
+             "depth chooseDepth goDeeper changeDepth startOver steps aboutMin".split())
 
 
 def finite_number(value: object, minimum: float = 0, positive: bool = False) -> bool:
@@ -20,6 +21,62 @@ def _valid_id(value: object) -> bool:
 
 def _text(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
+
+
+def _level_definitions(levels: object) -> tuple[list[str], list[str]]:
+    """The ids of the declared levels, shallowest first, and the errors in their definitions."""
+    if not isinstance(levels, list) or not levels:
+        return [], ["levels must be a nonempty array when supplied"]
+    ids, errors = [], []
+    for level in levels:
+        if not isinstance(level, dict) or not _valid_id(level.get("id")) or not _text(level.get("label")) or not _text(level.get("blurb")):
+            errors.append("each level needs a valid id, label and blurb")
+        else:
+            ids.append(level["id"])
+    if len(set(ids)) != len(ids):
+        errors.append("level ids must be unique")
+    return ids, errors
+
+
+def _selects(entry: dict, key: str, value: str) -> bool:
+    """Whether `entry` plays for `value`: no list means every value; a malformed list is reported elsewhere."""
+    chosen = entry.get(key)
+    return not isinstance(chosen, list) or value in chosen
+
+
+def playable(story: dict, mode: str, level: str) -> tuple[list[dict], list[dict]]:
+    """The intro steps and the moments a viewer of `mode` at `level` plays."""
+    def kept(kind: str) -> list[dict]:
+        entries = story.get(kind, [])
+        return [entry for entry in entries if isinstance(entry, dict) and _selects(entry, "modes", mode) and _selects(entry, "levels", level)] if isinstance(entries, list) else []
+    return kept("intro"), kept("moments")
+
+
+def declared_modes(story: dict) -> list[str]:
+    return [mode["id"] for mode in story.get("modes", [{"id": "main"}])]
+
+
+def declared_levels(story: dict) -> list[str]:
+    """The declared levels, shallowest first; empty for a story without levels."""
+    return [level["id"] for level in story.get("levels", [])]
+
+
+def _level_coverage_errors(story: dict, modes: list[str], levels: list[str]) -> list[str]:
+    errors = []
+    for mode in modes:
+        for level in levels:
+            moments = playable(story, mode, level)[1]
+            if len(moments) < 3:
+                errors.append(f"mode {mode}, level {level}: needs at least three moments, has {len(moments)}")
+            if not any(moment.get("heart") is True for moment in moments):
+                errors.append(f"mode {mode}, level {level}: needs at least one heart moment")
+    return errors
+
+
+def levels_without_cue(story: dict) -> list[tuple[str, str]]:
+    """The (mode, level) lists of a story with levels in which no step carries a sound cue."""
+    return [(mode, level) for mode in declared_modes(story) for level in declared_levels(story)
+            if not any("sfx" in entry for part in playable(story, mode, level) for entry in part)]
 
 
 def validate_story(story: object) -> list[str]:
@@ -59,6 +116,10 @@ def validate_story(story: object) -> list[str]:
             mode_ids.append(mode["id"])
     if len(set(mode_ids)) != len(mode_ids):
         errors.append("mode ids must be unique")
+    levels = None  # the declared level ids; None when the story has no levels
+    if "levels" in story:
+        levels, level_errors = _level_definitions(story["levels"])
+        errors.extend(level_errors)
     rest = story.get("atRest")
     if not isinstance(rest, dict) or rest.get("mode") not in mode_ids or not _text(rest.get("caption")):
         errors.append("atRest needs a known mode and caption")
@@ -90,12 +151,18 @@ def validate_story(story: object) -> list[str]:
             selected = entry.get("modes", mode_ids)
             if not isinstance(selected, list) or not selected or any(mode not in mode_ids for mode in selected):
                 errors.append("caption modes must name known modes")
+            if levels is not None and "levels" in entry:
+                chosen = entry["levels"]
+                if not isinstance(chosen, list) or not chosen or any(level not in levels for level in chosen):
+                    errors.append("caption levels must name known levels")
             if "sfx" in entry and (not isinstance(entry["sfx"], str) or entry["sfx"] not in CUES):
                 errors.append("sfx must name a supported cue")
             if "holdMs" in entry and not finite_number(entry["holdMs"]):
                 errors.append("holdMs must be nonnegative milliseconds")
     if len(identifiers) != len(set(identifiers)):
         errors.append("intro and moment ids must be unique")
+    if levels:
+        errors.extend(_level_coverage_errors(story, mode_ids, levels))
     for key, allowed in (("labels", LABELS), ("pronounce", None)):
         mapping = story.get(key, {})
         if not isinstance(mapping, dict) or any(not _text(name) or not _text(value) or (allowed is not None and name not in allowed) for name, value in mapping.items()):

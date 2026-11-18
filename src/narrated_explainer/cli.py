@@ -59,6 +59,7 @@ def _parser() -> argparse.ArgumentParser:
     _export_parser(commands, "snapshots", "Capture every mode and position as PNG")
     video = _export_parser(commands, "video", "Encode deterministic frames and offline soundtrack")
     video.add_argument("--mode", help="Mode identifier (default: first mode)")
+    video.add_argument("--level", help="Level identifier (default: the deepest level)")
     video.add_argument("--fps", type=_positive_number, help="Frames per second (MP4 30; GIF 12)")
     video.add_argument("--format", choices=("mp4", "gif"), default="mp4")
     video.add_argument("--out", type=Path, help="Output path (default: dist/<story>-<mode>.<format>)")
@@ -91,7 +92,7 @@ def _run(args) -> int:
     elif args.command == "video":
         from .export import video
         result = video(args.directory, mode=args.mode, fps=args.fps, format=args.format,
-                       width=args.width, scheme=args.scheme, out=args.out, no_voice=args.no_voice)
+                       width=args.width, scheme=args.scheme, out=args.out, no_voice=args.no_voice, level=args.level)
         print(f"{result['path']}: plan {result['duration_ms']:g} ms; {result['frames']} frames; {result['bytes']} bytes")
     elif args.command == "models":
         from .models import fetch_models

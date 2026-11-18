@@ -1,0 +1,27 @@
+{
+  "id": "levels",
+  "title": "Three depths for the start menu",
+  "lang": "en",
+  "levels": [
+    {"id": "quick", "label": "Quick", "blurb": "Just the headline."},
+    {"id": "normal", "label": "Normal", "blurb": "The steps that matter."},
+    {"id": "full", "label": "Full", "blurb": "Every step, with the details."}
+  ],
+  "modes": [
+    {"id": "a", "label": "Mode A"},
+    {"id": "b", "label": "Mode B"}
+  ],
+  "timing": {"end": 10, "unit": "ms", "realMsPerUnit": 30, "holdMs": 1600, "speeds": [0.5, 1]},
+  "atRest": {"mode": "a", "t": 10, "caption": "Press Play to start."},
+  "intro": [
+    {"id": "hello", "caption": "Hello, here is the setup."},
+    {"id": "setup", "levels": ["normal", "full"], "caption": "A little more about the setup."}
+  ],
+  "moments": [
+    {"id": "s1", "t": 0, "levels": ["normal", "full"], "sfx": "whoosh", "caption": "The first step."},
+    {"id": "s2", "t": 2, "heart": true, "caption": "The heart of the story."},
+    {"id": "s3", "t": 4, "caption": "The next step."},
+    {"id": "s4", "t": 6, "caption": "The step after that."},
+    {"id": "s5", "t": 8, "modes": ["a"], "levels": ["full"], "sfx": "ding", "caption": "A detail only mode A shows."}
+  ]
+}
