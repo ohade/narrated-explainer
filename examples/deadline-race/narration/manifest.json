@@ -334,76 +334,6 @@
         ]
       ]
     },
-    "fan-out": {
-      "file": "fan-out-242b517ba92fc65a.mp3",
-      "key": "242b517ba92fc65a91da23741a5aff917e72032d625708c19d4e3308da2c60a0",
-      "spoken": "At 200 milliseconds the Gateway asks Services A and B. Only 100 milliseconds are left.",
-      "caption": "At 200 ms the Gateway asks Services A and B. Only 100 ms are left.",
-      "duration": 6.921375,
-      "score": 0.9655172413793104,
-      "words": [
-        [
-          0.0,
-          0.18
-        ],
-        [
-          0.18,
-          0.58
-        ],
-        [
-          0.58,
-          1.2
-        ],
-        [
-          1.54,
-          1.58
-        ],
-        [
-          1.58,
-          1.84
-        ],
-        [
-          1.84,
-          2.34
-        ],
-        [
-          2.34,
-          2.86
-        ],
-        [
-          2.86,
-          3.34
-        ],
-        [
-          3.34,
-          3.34
-        ],
-        [
-          3.34,
-          3.66
-        ],
-        [
-          4.22,
-          4.72
-        ],
-        [
-          4.72,
-          5.12
-        ],
-        [
-          5.12,
-          5.74
-        ],
-        [
-          5.74,
-          6.12
-        ],
-        [
-          6.12,
-          6.42
-        ]
-      ]
-    },
     "before-budget": {
       "file": "before-budget-255b6093621298f8.mp3",
       "key": "255b6093621298f89f5e9194ef74b44c73c8608498d6312d147cdc5fb8a3d3c2",
@@ -589,84 +519,6 @@
         [
           9.72,
           10.14
-        ]
-      ]
-    },
-    "a-answers": {
-      "file": "a-answers-e07f4d17e9dbeb08.mp3",
-      "key": "e07f4d17e9dbeb080b6f0707f60731746c8d1aec05a9f539b149b14d2b65aa58",
-      "spoken": "Service A answers in 20 milliseconds. Its reply waits in the Gateway, which sends one combined answer.",
-      "caption": "Service A answers in 20 ms. Its reply waits in the Gateway, which sends one combined answer.",
-      "duration": 7.5866875,
-      "score": 0.9696969696969697,
-      "words": [
-        [
-          0.0,
-          0.38
-        ],
-        [
-          0.38,
-          0.38
-        ],
-        [
-          0.38,
-          0.58
-        ],
-        [
-          0.58,
-          1.24
-        ],
-        [
-          1.24,
-          1.5
-        ],
-        [
-          1.5,
-          1.98
-        ],
-        [
-          2.92,
-          2.98
-        ],
-        [
-          2.98,
-          3.28
-        ],
-        [
-          3.28,
-          3.78
-        ],
-        [
-          3.78,
-          4.14
-        ],
-        [
-          4.14,
-          4.24
-        ],
-        [
-          4.24,
-          4.48
-        ],
-        [
-          5.16,
-          5.3
-        ],
-        [
-          5.3,
-          5.56
-        ],
-        [
-          5.56,
-          5.98
-        ],
-        [
-          5.98,
-          6.42
-        ],
-        [
-          6.42,
-          7.14
         ]
       ]
     },
@@ -893,6 +745,154 @@
         [
           7.16,
           7.46
+        ]
+      ]
+    },
+    "fan-out": {
+      "file": "fan-out-6f2c9b775520a0c8.mp3",
+      "key": "6f2c9b775520a0c8c2a914900cda8c6b94135e303696826dfc5e3cb760d3d445",
+      "spoken": "At 200 milliseconds the Gateway asks Services A. and B. Only 100 milliseconds are left.",
+      "caption": "At 200 ms the Gateway asks Services A and B. Only 100 ms are left.",
+      "duration": 7.520625,
+      "score": 1.0,
+      "words": [
+        [
+          0.0,
+          0.18
+        ],
+        [
+          0.18,
+          0.6
+        ],
+        [
+          0.6,
+          1.18
+        ],
+        [
+          1.52,
+          1.56
+        ],
+        [
+          1.56,
+          1.82
+        ],
+        [
+          1.82,
+          2.3
+        ],
+        [
+          2.3,
+          2.78
+        ],
+        [
+          2.78,
+          3.24
+        ],
+        [
+          3.24,
+          3.94
+        ],
+        [
+          3.94,
+          4.14
+        ],
+        [
+          4.62,
+          5.32
+        ],
+        [
+          5.32,
+          5.72
+        ],
+        [
+          5.72,
+          6.34
+        ],
+        [
+          6.34,
+          6.72
+        ],
+        [
+          6.72,
+          7.0
+        ]
+      ]
+    },
+    "a-answers": {
+      "file": "a-answers-bc7b95570d321abf.mp3",
+      "key": "bc7b95570d321abf29f3a9d83117032f51f80bc8bebee8abf8eabf0e60a44471",
+      "spoken": "Service A. answers in 20 milliseconds. Its reply waits in the Gateway, which sends one combined answer.",
+      "caption": "Service A answers in 20 ms. Its reply waits in the Gateway, which sends one combined answer.",
+      "duration": 7.964,
+      "score": 0.9411764705882353,
+      "words": [
+        [
+          0.0,
+          0.28
+        ],
+        [
+          0.28,
+          0.68
+        ],
+        [
+          1.66,
+          1.66
+        ],
+        [
+          1.66,
+          1.92
+        ],
+        [
+          1.92,
+          2.5
+        ],
+        [
+          2.5,
+          2.5
+        ],
+        [
+          3.66,
+          3.72
+        ],
+        [
+          3.72,
+          4.1
+        ],
+        [
+          4.1,
+          4.58
+        ],
+        [
+          4.58,
+          4.88
+        ],
+        [
+          4.88,
+          4.98
+        ],
+        [
+          4.98,
+          5.22
+        ],
+        [
+          5.22,
+          5.8
+        ],
+        [
+          5.8,
+          6.06
+        ],
+        [
+          6.06,
+          6.42
+        ],
+        [
+          6.42,
+          6.8
+        ],
+        [
+          6.8,
+          7.52
         ]
       ]
     }

@@ -22,17 +22,36 @@ BUILT_IN_PRONOUNCE = {
     "Redis": "reddis",
     "stdout": "standard out",
 }
+# A capital "A" used as a name ("partner A") is read by eSpeak as the article "a" ("uh"), and Whisper hears
+# it as "at" or drops it. Checked 2026-11-18 with espeakng-loader 0.2.4 and faster-whisper base.en, through the
+# story's pronounce map: "Ay" and "ay" were heard as "I", "Ae" as the word "AE", and "A." was heard as the
+# letter "A" and passed the speech check. A sentence-start "A" is the article and stays as written. Only an "A"
+# followed by a space and a word needs the respelling; "A." "A," "A's" "A-grade" and "A/B" are already read as
+# the letter (probed 2026-11-18), and the respelling would turn "Plan A." into "Plan A..".
+LETTER_A = "A."
+SYMBOLS = "✓✔✕✖✗×"
+WORD_FOLLOWS = re.compile(r"\s+[^\W_]")
+SENTENCE_START = re.compile(rf"(?:\A[\s{SYMBOLS}]*|[.!?:]\s+)[\"'“‘(\[]*\Z")
 
 
 def spoken_text(caption: str, pronounce: dict | None = None, say: str | None = None) -> str:
     """Apply whole-word pronunciations, the story's over the built-in ones, and the default symbol/unit rules."""
     text = caption if say is None else say
-    replacements = {**BUILT_IN_PRONOUNCE, **(pronounce or {})}
+    story_pronounce = pronounce or {}
+    replacements = {**BUILT_IN_PRONOUNCE, "A": LETTER_A, **story_pronounce}
     words = "|".join(re.escape(word) for word in sorted(replacements, key=len, reverse=True))
-    text = re.sub(rf"(?<!\w)(?:{words})(?!\w)", lambda match: replacements[match.group()], text)
+
+    def respell(match: re.Match) -> str:
+        word = match.group()
+        if word == "A" and "A" not in story_pronounce and (
+                SENTENCE_START.search(text, 0, match.start()) or not WORD_FOLLOWS.match(text, match.end())):
+            return word
+        return replacements[word]
+
+    text = re.sub(rf"(?<!\w)(?:{words})(?!\w)", respell, text)
     text = re.sub(r"\bms\b", "milliseconds", text)
     text = text.replace("%", " percent").replace("&", " and ")
-    text = re.sub(r"[✓✔✕✖✗×]", "", text)
+    text = re.sub(f"[{SYMBOLS}]", "", text)
     return " ".join(text.split())
 
 
