@@ -54,7 +54,7 @@ def test_capture_keeps_the_stage_geometry_at_width_1280(race):
         browser.page.add_style_tag(content=ONE_LINE_CONTROLS)
         box = browser.figure.locator(".nx-stage").bounding_box()
         theme = browser.figure.locator(".nx-theme").bounding_box()
-    assert box == {"x": 0, "y": 125, "width": 1280, "height": 1130.65625}
+    assert box == {"x": 0, "y": 97, "width": 1280, "height": 1130.65625}
     assert theme is None, "the Theme control takes no space in capture"
 
 

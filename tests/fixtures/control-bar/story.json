@@ -1,0 +1,14 @@
+{
+  "id": "control-bar",
+  "title": "Three modes for the control bar",
+  "lang": "en",
+  "modes": [
+    {"id": "before", "label": "Before"},
+    {"id": "after", "label": "After"},
+    {"id": "compare", "label": "Compare"}
+  ],
+  "timing": {"end": 10, "unit": "ms", "realMsPerUnit": 30, "holdMs": 1600, "speeds": [0.5, 1]},
+  "atRest": {"mode": "before", "t": 10, "caption": "Press Play to start."},
+  "intro": [{"id": "start", "caption": "The bar holds three modes."}],
+  "moments": [{"id": "end", "t": 0, "caption": "The bar stays one row."}]
+}

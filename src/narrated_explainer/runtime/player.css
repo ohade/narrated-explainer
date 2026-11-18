@@ -56,11 +56,12 @@
   position: sticky;
   top: var(--nx-sticky-top, 0px);
   z-index: 3;
-  padding: 8px 0;
+  padding: 6px 0;
   background: var(--nx-page);
   border-bottom: 1px solid var(--nx-hairline);
 }
-.nx .nx-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.nx .nx-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.nx .nx-speed { margin-inline-start: auto; }
 .nx .nx-group { display: inline-flex; flex-wrap: wrap; }
 
 .nx button {
@@ -101,15 +102,60 @@
 .nx .nx-group button:last-child { border-radius: 0 6px 6px 0; }
 .nx .nx-group button + button { border-left-width: 0; }
 .nx .nx-voice-name { font-size: 16px; color: var(--nx-ink-2); }
+
+/* Icon buttons: a 24 px glyph in a 44 px target, no border; the name is the aria-label. */
+.nx .nx-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  list-style: none;
+  color: var(--nx-ink);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.nx .nx-icon:hover { background: var(--nx-sunken); }
+.nx .nx-icon svg { display: block; width: 24px; height: 24px; }
+.nx summary.nx-icon::-webkit-details-marker { display: none; }
+.nx .nx-icon:focus-visible { outline: 3px solid var(--nx-info-fg); outline-offset: 2px; position: relative; z-index: 1; }
+
+/* More: the panel is out of flow, so opening it never moves the stage. */
+.nx .nx-more { position: relative; }
+.nx .nx-menu {
+  position: absolute;
+  top: 100%;
+  inset-inline-end: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+  padding: 8px;
+  background: var(--nx-page);
+  border: 1px solid var(--nx-edge);
+  border-radius: 8px;
+  box-shadow: 0 6px 16px var(--nx-hairline);
+}
+.nx .nx-more:not([open]) .nx-menu { display: none; }
+.nx .nx-menu button { width: 100%; text-align: start; }
+.nx .nx-menu-voice { display: flex; flex-direction: column; gap: 2px; }
+.nx .nx-menu-voice[hidden] { display: none; }
+.nx .nx-menu-voice .nx-voice-name { padding-inline: 14px; }
 .nx .nx-credit { margin: 24px 0 0; font-size: 16px; color: var(--nx-ink-2); }
 .nx .nx-credit a { color: inherit; }
 
 /* Progress: one clickable marker per position. */
-.nx .nx-progress { display: flex; gap: 3px; margin-top: 8px; min-width: 0; }
+.nx .nx-progress { display: flex; gap: 3px; margin-top: 4px; min-width: 0; }
 .nx .nx-progress .nx-marker {
   position: relative;
   flex: 1 1 0;
   min-width: 0;
+  min-height: 24px;
+  height: 24px;
   padding: 0;
   background: transparent;
   border: 0;

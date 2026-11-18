@@ -18,6 +18,20 @@
     voiceOn: 'Voice: on', voiceOff: 'Voice: off', soundOn: 'Sound: on', soundOff: 'Sound: off',
     speed: 'Speed', mode: 'Mode', transcript: 'Transcript', fullscreen: 'Fullscreen',
     themeAuto: 'Theme: Auto', themeLight: 'Theme: Light', themeDark: 'Theme: Dark',
+    more: 'More', replay: 'Replay',
+  };
+  // Control glyphs: static markup on a 24 px grid, drawn in the button's text colour. No story or
+  // reader data ever goes into them.
+  const GLYPH_OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor" ' +
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+  const GLYPHS = {
+    play: '<path d="M8 5.5v13l10.5-6.5z"/>',
+    pause: '<rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/>',
+    prev: '<path d="M6 5v14" fill="none"/><path d="M19 5.5v13L9 12z"/>',
+    next: '<path d="M18 5v14" fill="none"/><path d="M5 5.5v13L15 12z"/>',
+    replay: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" fill="none"/><path d="M4 4v5h5" fill="none"/>',
+    fullscreen: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none"/>',
+    more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   };
   const THEMES = ['auto', 'light', 'dark'];
   const THEME_KEY = 'narrated-explainer-theme';
@@ -379,6 +393,19 @@
     return el;
   }
 
+  // Shows glyph `name` in an icon button; the glyph is replaced only when it changes.
+  function setGlyph(el, name) {
+    if (el.getAttribute('data-icon') === name) return;
+    el.setAttribute('data-icon', name);
+    el.innerHTML = GLYPH_OPEN + GLYPHS[name] + '</svg>';
+  }
+
+  // An icon button has no text: its name is the aria-label, repeated as the tooltip.
+  function setName(el, label) {
+    el.setAttribute('aria-label', label);
+    el.setAttribute('title', label);
+  }
+
   function isTypingTarget(target) {
     if (!target || !target.tagName) return false;
     const tag = target.tagName.toLowerCase();
@@ -550,21 +577,34 @@
         modeButtons.push([m.id, b]);
       });
     }
-    const playButton = button(controls, 'nx-play', labels.play);
-    const restartButton = button(controls, 'nx-restart', labels.restart);
-    const prevButton = button(controls, 'nx-prev', labels.prev);
-    const nextButton = button(controls, 'nx-next', labels.next);
+    const iconButton = (parent, cls, label, glyph) => {
+      const b = button(parent, cls + ' nx-icon', '');
+      setName(b, label);
+      setGlyph(b, glyph);
+      return b;
+    };
+    const playButton = iconButton(controls, 'nx-play', labels.play, 'play');
+    const prevButton = iconButton(controls, 'nx-prev', labels.prev, 'prev');
+    const nextButton = iconButton(controls, 'nx-next', labels.next, 'next');
     const speedSelect = controls.appendChild(h(doc, 'select', { class: 'nx-speed', 'aria-label': labels.speed }));
     SPEEDS.forEach((v) => speedSelect.appendChild(h(doc, 'option', { value: String(v) }, v + 'x')));
     speedSelect.value = '1';
-    const voiceButton = button(controls, 'nx-voice', labels.voiceOn, { 'aria-pressed': 'true' });
-    const voiceName = controls.appendChild(h(doc, 'span', { class: 'nx-voice-name' }, narration ? narration.label || '' : ''));
-    if (!narration) { voiceButton.hidden = true; voiceName.hidden = true; }
-    const soundButton = button(controls, 'nx-sound', labels.soundOn, { 'aria-pressed': 'true' });
-    const transcriptButton = button(controls, 'nx-transcript-toggle', labels.transcript, { 'aria-expanded': 'false', 'aria-controls': uid + '-transcript' });
-    const fullscreenButton = button(controls, 'nx-fullscreen', labels.fullscreen);
+    const fullscreenButton = iconButton(controls, 'nx-fullscreen', labels.fullscreen, 'fullscreen');
     if (typeof figure.requestFullscreen !== 'function') fullscreenButton.hidden = true;
-    const themeButton = button(controls, 'nx-theme', labels.themeAuto);
+    // More: the rarely used controls, in a panel that opens over the stage without moving it.
+    const more = controls.appendChild(h(doc, 'details', { class: 'nx-more' }));
+    const moreSummary = more.appendChild(h(doc, 'summary', { class: 'nx-more-toggle nx-icon' }));
+    setName(moreSummary, labels.more);
+    setGlyph(moreSummary, 'more');
+    const menu = more.appendChild(h(doc, 'div', { class: 'nx-menu' }));
+    const restartButton = button(menu, 'nx-restart', labels.restart);
+    const voiceRow = menu.appendChild(h(doc, 'div', { class: 'nx-menu-voice' }));
+    const voiceButton = button(voiceRow, 'nx-voice', labels.voiceOn, { 'aria-pressed': 'true' });
+    const voiceName = voiceRow.appendChild(h(doc, 'span', { class: 'nx-voice-name' }, narration ? narration.label || '' : ''));
+    if (!narration) { voiceRow.hidden = true; voiceButton.hidden = true; voiceName.hidden = true; }
+    const soundButton = button(menu, 'nx-sound', labels.soundOn, { 'aria-pressed': 'true' });
+    const transcriptButton = button(menu, 'nx-transcript-toggle', labels.transcript, { 'aria-expanded': 'false', 'aria-controls': uid + '-transcript' });
+    const themeButton = button(menu, 'nx-theme', labels.themeAuto);
     const progress = bar.appendChild(h(doc, 'div', { class: 'nx-progress' }));
     const stage = figure.appendChild(h(doc, 'div', { class: 'nx-stage' }));
     // The figcaption is the figure's last child (HTML content model), so the transcript comes first.
@@ -635,7 +675,9 @@
     voice.onWord = () => renderWord(voice.word());
 
     function renderControls(snap) {
-      playButton.textContent = snap.playing ? labels.pause : labels.play;
+      const playAction = snap.playing ? 'pause' : snap.finished ? 'replay' : 'play';
+      setName(playButton, labels[playAction]);
+      setGlyph(playButton, playAction);
       modeButtons.forEach(([id, b]) => b.setAttribute('aria-pressed', String(id === snap.mode)));
       voiceButton.textContent = snap.voiceOn ? labels.voiceOn : labels.voiceOff;
       voiceButton.setAttribute('aria-pressed', String(snap.voiceOn));
@@ -697,7 +739,7 @@
       if (c.snapshot().playing) { c.pause(clock()); stopClip(); } else c.play(clock());
       update();
     }
-    function restart() { unlock(); stopClip(); c.restart(clock()); update(); }
+    function restart() { more.open = false; unlock(); stopClip(); c.restart(clock()); update(); }
     function step(direction) { unlock(); stopClip(); c.step(direction, clock()); update(); }
     function jumpTo(index) { unlock(); stopClip(); c.jump(index, clock()); update(); }
     function selectMode(id) {
@@ -795,6 +837,7 @@
     transcriptButton.addEventListener('click', toggleTranscript);
     fullscreenButton.addEventListener('click', toggleFullscreen);
     themeButton.addEventListener('click', cycleTheme);
+    doc.addEventListener('click', (event) => { if (more.open && !more.contains(event.target)) more.open = false; });
     if (reducedQuery && reducedQuery.addEventListener) {
       reducedQuery.addEventListener('change', () => { c.setReduced(reducedQuery.matches); renderLive(clock()); });
     }
@@ -805,7 +848,15 @@
     };
 
     function onKey(event) {
-      if (event.defaultPrevented || isTypingTarget(event.target)) return;
+      if (event.defaultPrevented) return;
+      if (event.key === 'Escape' && more.open) {
+        more.open = false;
+        moreSummary.focus();
+        event.preventDefault();
+        return;
+      }
+      // The select and the More widget keep their own keys (Space opens the menu, letters pick items).
+      if (isTypingTarget(event.target) || more.contains(event.target)) return;
       const action = keyAction(event);
       if (!action) return;
       // Space on a focused button already clicks it.

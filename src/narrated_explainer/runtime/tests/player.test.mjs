@@ -609,6 +609,7 @@ class FakeNode {
     for (const fn of this.listeners[type] || []) fn(event);
   }
   click() { this.dispatch('click'); }
+  focus() { this.ownerDocument.focused = this; }
   contains(node) { for (let n = node; n; n = n.parentNode) if (n === this) return true; return false; }
   get textContent() { return this.tagName ? this.children.map((c) => c.textContent).join('') : this.data; }
   set textContent(value) {
@@ -624,7 +625,11 @@ function fakeDocument() {
     createElement: (tag) => new FakeNode(doc, tag),
     createElementNS: (ns, tag) => new FakeNode(doc, tag),
     createTextNode: (text) => { const n = new FakeNode(doc, null); n.data = String(text); return n; },
-    addEventListener() {},
+    addEventListener(type, fn) { (doc.listeners[type] = doc.listeners[type] || []).push(fn); },
+    // Runs the page-level listeners for an event, as the browser does for one that bubbles to the document.
+    dispatch(type, extra = {}) {
+      for (const fn of doc.listeners[type] || []) fn({ type, defaultPrevented: false, preventDefault() {}, ...extra });
+    },
   };
   return doc;
 }
@@ -647,8 +652,9 @@ const NARRATION = {
   },
 };
 
-function mountFake(narration = NARRATION) {
+function mountFake(narration = NARRATION, { storyOverride = story, fullscreen = false } = {}) {
   const audios = [];
+  const frames = [];
   class FakeAudio {
     constructor() {
       this.listeners = {};
@@ -665,15 +671,20 @@ function mountFake(narration = NARRATION) {
   const clock = { now: 0 };
   const context = load({
     performance: { now: () => clock.now },
-    requestAnimationFrame: () => 1,
+    requestAnimationFrame: (callback) => { frames.push(callback); return frames.length; },
     cancelAnimationFrame() {},
     Audio: FakeAudio,
   });
   vm.runInContext(read('tests/fixtures/mini/scene.js'), context, { filename: 'scene.js' });
   const doc = fakeDocument();
   const figure = doc.createElement('figure');
-  const player = context.NarratedExplainer.mount(figure, { story, narration });
-  return { player, figure, audios, clock };
+  if (fullscreen) figure.requestFullscreen = () => {};
+  const player = context.NarratedExplainer.mount(figure, { story: storyOverride, narration });
+  // Runs the queued animation frames, 500 ms apart, until playback stops or `limitMs` has passed.
+  const runFrames = (limitMs = 100000) => {
+    for (let at = clock.now + 500; frames.length && at <= limitMs; at += 500) { clock.now = at; frames.shift()(at); }
+  };
+  return { player, figure, audios, clock, doc, runFrames };
 }
 
 // What a reader sees in the controls, the caption and the transcript.
@@ -681,7 +692,7 @@ function seen(figure) {
   const markers = byClass(figure, 'nx-marker');
   return {
     pressedMode: byClass(figure, 'nx-mode').filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent),
-    play: byClass(figure, 'nx-play')[0].textContent,
+    play: byClass(figure, 'nx-play')[0].getAttribute('aria-label'),
     markers: markers.length,
     passed: markers.filter((b) => b.classList.contains('nx-passed')).length,
     current: markers.findIndex((b) => b.getAttribute('aria-current') === 'step'),
@@ -713,7 +724,7 @@ test('renderAt() on a player at rest shows that frame\'s mode, markers, transcri
   assert.equal(seen(figure).word, -1);
   player.renderAt('bumpy', 11300); // the end
   assert.deepEqual(plain(seen(figure)), {
-    pressedMode: ['Bumpy'], play: 'Play', markers: 6, passed: 6, current: -1,
+    pressedMode: ['Bumpy'], play: 'Replay', markers: 6, passed: 6, current: -1,
     transcript: bumpyCaptions, caption: 'The ball reaches the flag.', word: -1,
   });
   assert.equal(audios.length, 0, 'renderAt plays no audio');
@@ -784,7 +795,7 @@ test('the Theme control still works when storage throws', () => {
   assert.ok(theme, 'the player has a Theme control');
   theme.click();
   assert.equal(figure.getAttribute('data-nx-theme'), 'light');
-  assert.equal(byClass(figure, 'nx-play')[0].textContent, 'Play');
+  assert.equal(byClass(figure, 'nx-play')[0].getAttribute('aria-label'), 'Play');
 });
 
 const speedSelect = (figure) => byClass(figure, 'nx-speed')[0];
@@ -825,4 +836,151 @@ test('keyboard shortcuts do not fire while the speed select has focus', () => {
   assert.equal(voice.textContent, 'Voice: on');
   figure.dispatch('keydown', { key: 'v' });
   assert.equal(voice.textContent, 'Voice: off');
+});
+
+// ---------------------------------------------------------------------------------------------
+// The control bar: icon buttons, the More menu and Replay.
+const labelOf = (node) => node.getAttribute('aria-label');
+const iconOf = (node) => node.getAttribute('data-icon');
+const required = (node, what) => { assert.ok(node, 'the bar has ' + what); return node; };
+const moreOf = (figure) => required(byClass(figure, 'nx-more')[0], 'a More menu');
+const menuOf = (figure) => required(byClass(figure, 'nx-menu')[0], 'a menu panel');
+const menuItem = (figure, cls) => required(byClass(figure, cls)[0], 'a ' + cls + ' control');
+// Presses `key` with focus on `target`: the keydown bubbles to the figure. Returns what the handler did with it.
+const press = (figure, target, key) => {
+  let prevented = false;
+  figure.dispatch('keydown', { key, target, preventDefault() { prevented = true; } });
+  return { defaultPrevented: prevented };
+};
+
+test('the icon buttons carry a glyph, an accessible name and a title from the labels', () => {
+  const { figure } = mountFake(NARRATION, { fullscreen: true });
+  const summary = required(moreOf(figure).children[0], 'a summary');
+  const icons = [
+    [byClass(figure, 'nx-play')[0], 'Play', 'play'], [byClass(figure, 'nx-prev')[0], 'Previous', 'prev'],
+    [byClass(figure, 'nx-next')[0], 'Next', 'next'], [byClass(figure, 'nx-fullscreen')[0], 'Fullscreen', 'fullscreen'],
+    [summary, 'More', 'more'],
+  ];
+  for (const [node, label, icon] of icons) {
+    assert.equal(labelOf(node), label);
+    assert.equal(node.getAttribute('title'), label);
+    assert.equal(iconOf(node), icon);
+    assert.match(node.innerHTML, /^<svg [^>]*viewBox="0 0 24 24"/, label + ' holds an inline svg');
+    assert.match(node.innerHTML, /currentColor/, label + ' follows the text colour');
+    assert.equal(node.textContent, '', label + ' shows no text');
+  }
+  assert.equal(summary.tagName, 'SUMMARY');
+  assert.equal(moreOf(figure).tagName, 'DETAILS');
+});
+
+test('the Play icon follows the state: play, then pause once playing', () => {
+  const { figure } = mountFake();
+  const play = byClass(figure, 'nx-play')[0];
+  assert.deepEqual([labelOf(play), iconOf(play)], ['Play', 'play']);
+  play.click();
+  assert.deepEqual([labelOf(play), iconOf(play)], ['Pause', 'pause']);
+  play.click();
+  assert.deepEqual([labelOf(play), iconOf(play)], ['Play', 'play']);
+});
+
+test('the bar order is modes, Play, Previous, Next, Speed, Fullscreen, More', () => {
+  const { figure } = mountFake(NARRATION, { fullscreen: true });
+  const controls = byClass(figure, 'nx-controls')[0];
+  const names = controls.children.map((n) => (n.getAttribute('class') || n.tagName).split(' ')[0]);
+  assert.deepEqual(names, ['nx-group', 'nx-play', 'nx-prev', 'nx-next', 'nx-speed', 'nx-fullscreen', 'nx-more']);
+});
+
+test('More holds Restart, Voice with its name, Sound, Transcript and Theme, in that order', () => {
+  const { figure } = mountFake();
+  const names = menuOf(figure).children.map((n) => n.getAttribute('class').split(' ')[0]);
+  assert.deepEqual(names, ['nx-restart', 'nx-menu-voice', 'nx-sound', 'nx-transcript-toggle', 'nx-theme']);
+  const voice = menuItem(menuOf(figure), 'nx-menu-voice');
+  assert.deepEqual(voice.children.map((n) => n.getAttribute('class').split(' ')[0]), ['nx-voice', 'nx-voice-name']);
+  assert.equal(byClass(figure, 'nx-voice-name')[0].textContent, 'Test voice');
+  for (const cls of ['nx-restart', 'nx-voice', 'nx-sound', 'nx-transcript-toggle', 'nx-theme']) {
+    assert.notEqual(menuItem(menuOf(figure), cls).textContent, '', cls + ' keeps its text');
+  }
+  assert.equal(moreOf(figure).open === true, false, 'the menu starts closed');
+});
+
+test('without narration the Voice item and its name are hidden', () => {
+  const { figure } = mountFake(null);
+  assert.equal(menuItem(figure, 'nx-voice').hidden, true);
+  assert.equal(menuItem(figure, 'nx-voice-name').hidden, true);
+  assert.equal(menuItem(figure, 'nx-menu-voice').hidden, true);
+});
+
+test('Escape closes the open menu, returns focus to its summary and does nothing else', () => {
+  const { figure, doc } = mountFake();
+  const more = moreOf(figure);
+  const play = byClass(figure, 'nx-play')[0];
+  more.open = true;
+  const event = press(figure, menuItem(figure, 'nx-sound'), 'Escape');
+  assert.equal(more.open, false);
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(doc.focused, more.children[0]);
+  assert.equal(labelOf(play), 'Play', 'nothing started');
+  assert.equal(press(figure, figure, 'Escape').defaultPrevented, false, 'with the menu closed Escape is left alone');
+});
+
+test('keyboard shortcuts do not fire while focus is in the open menu or on its summary', () => {
+  const { figure } = mountFake();
+  const more = moreOf(figure);
+  const voice = byClass(figure, 'nx-voice')[0];
+  more.open = true;
+  assert.equal(press(figure, menuItem(figure, 'nx-sound'), 'v').defaultPrevented, false);
+  assert.equal(voice.textContent, 'Voice: on');
+  more.open = false;
+  assert.equal(press(figure, more.children[0], ' ').defaultPrevented, false, 'Space on the summary opens the menu natively');
+  assert.equal(labelOf(byClass(figure, 'nx-play')[0]), 'Play');
+  press(figure, figure, 'v');
+  assert.equal(voice.textContent, 'Voice: off', 'a shortcut elsewhere still works');
+});
+
+test('a click outside the menu closes it; a click inside does not', () => {
+  const { figure, doc } = mountFake();
+  const more = moreOf(figure);
+  more.open = true;
+  doc.dispatch('click', { target: menuItem(figure, 'nx-sound') });
+  assert.equal(more.open, true);
+  doc.dispatch('click', { target: more.children[0] });
+  assert.equal(more.open, true, 'the summary toggles the menu itself');
+  doc.dispatch('click', { target: byClass(figure, 'nx-caption')[0] });
+  assert.equal(more.open, false);
+  doc.dispatch('click', { target: byClass(figure, 'nx-caption')[0] });
+  assert.equal(more.open, false);
+});
+
+test('Restart closes the menu; Voice, Sound, Transcript and Theme leave it open', () => {
+  const { figure } = mountFake();
+  const more = moreOf(figure);
+  for (const cls of ['nx-voice', 'nx-sound', 'nx-transcript-toggle', 'nx-theme']) {
+    more.open = true;
+    menuItem(figure, cls).click();
+    assert.equal(more.open, true, cls + ' keeps the menu open');
+  }
+  menuItem(figure, 'nx-restart').click();
+  assert.equal(more.open, false);
+});
+
+test('when the story has finished Play becomes Replay, and clicking it plays again from the start', () => {
+  const { figure, clock, runFrames } = mountFake(null);
+  const play = byClass(figure, 'nx-play')[0];
+  play.click();
+  runFrames();
+  assert.deepEqual([labelOf(play), iconOf(play), play.getAttribute('title')], ['Replay', 'replay', 'Replay']);
+  assert.equal(byClass(figure, 'nx-caption')[0].textContent, 'The ball reaches the flag.');
+  play.click();
+  assert.deepEqual([labelOf(play), iconOf(play)], ['Pause', 'pause']);
+  assert.equal(byClass(figure, 'nx-caption')[0].textContent, 'This is the ball.', 'it began again at the first step');
+  assert.ok(clock.now > 0);
+});
+
+test('a story can override the More and Replay labels', () => {
+  const labels = { more: 'Mehr', replay: 'Nochmal' };
+  const { figure, runFrames } = mountFake(null, { storyOverride: { ...story, labels } });
+  assert.equal(labelOf(moreOf(figure).children[0]), 'Mehr');
+  byClass(figure, 'nx-play')[0].click();
+  runFrames();
+  assert.equal(labelOf(byClass(figure, 'nx-play')[0]), 'Nochmal');
 });
