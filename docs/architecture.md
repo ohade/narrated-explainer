@@ -198,8 +198,8 @@ video. The audio context is created on the first click.
 | `explainer new <dir>` | A starter story folder |
 | `explainer narrate <dir>` | Records every caption, checks it, writes `narration/` |
 | `explainer build <dir> [--fragment]` | `dist/<id>.html`, or a `<figure>` fragment to paste into another page |
-| `explainer check <dir>` | Static checks on the story and the built file, and that the player fits common windows |
-| `explainer snapshots <dir>` | One PNG per mode and position in `dist/snapshots/`, and a failure on any console error |
+| `explainer check <dir> [--no-voice]` | Static checks on the story and the built file, and that the player fits common windows; a warning when one mode and level has more than ten moments; `--no-voice` skips only the narration checks |
+| `explainer snapshots <dir>` | One PNG per mode and position in `dist/snapshots/`, contact sheets `sheet-*.png` of up to six labelled frames per mode and level, and a failure on any console error |
 | `explainer video <dir> [--mode m] [--fps 30] [--format mp4\|gif]` | An MP4 with the soundtrack, or a silent GIF |
 | `explainer models fetch` | Downloads and hash-checks the voice and speech-check models |
 | `explainer doctor` | Reports what is installed and how to fix what is missing |

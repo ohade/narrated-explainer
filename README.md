@@ -31,8 +31,8 @@ in your browser and press Play, or watch [`docs/demo/deadline-race-after.mp4`](d
 - **Controls**: Play/Pause, Restart, Previous/Next moment, speed, voice and sound toggles, a
   progress bar with one marker per moment, a transcript, fullscreen, and keyboard shortcuts.
   Nothing plays until the viewer clicks, and reduced-motion settings are respected.
-- **Proof for the author**: `explainer snapshots` saves a PNG of every moment so an agent (or
-  you) can look at each frame, and `explainer check` rejects files that would load anything from
+- **Proof for the author**: `explainer snapshots` saves a PNG of every moment, plus contact
+  sheets of up to six labelled frames, so an agent (or you) can look at each frame, and `explainer check` rejects files that would load anything from
   the network.
 - **Video**: `explainer video` renders a frame-exact MP4 with the soundtrack, or a silent GIF.
 
@@ -83,7 +83,7 @@ explainer new my-story          # a starter: story.json + scene.js
 explainer narrate my-story      # record and check every caption
 explainer build my-story        # my-story/dist/<id>.html
 explainer check my-story        # story rules, stale narration, no network calls
-explainer snapshots my-story    # one PNG per moment in my-story/dist/snapshots/
+explainer snapshots my-story    # one PNG per moment, plus contact sheets, in my-story/dist/snapshots/
 explainer video my-story        # MP4 with the soundtrack (--format gif for a silent GIF)
 ```
 
@@ -110,7 +110,7 @@ Story options live in `story.json`; command options are flags.
 | Pronunciation | `story.json` `pronounce` | a map from a word to how to say it, applied as whole words; it overrides the built-in respellings | built-in respellings for `datetime`, `enum`, `k8s`, `Redis`, `stdout` |
 | Spoken text for one moment | moment `say` | the text the narrator reads instead of the caption | the caption |
 | Modes | `story.json` `modes` | two or more modes for a contrast (before/after, A/B) | one mode, `main` |
-| No narration | `build`, `snapshots`, `video` `--no-voice` | build without the voice, keep sound cues | voice on |
+| No narration | `build`, `snapshots`, `video` `--no-voice`; `check --no-voice` | build without the voice, keep sound cues; check skips only the narration checks, for a silent draft | voice on |
 | Fragment | `build --fragment` | only the figure, to paste into another page | full page |
 | Figure size and colours | `snapshots`, `video` `--width`, `--scheme` | a width in pixels; `light` or `dark` | 1280 (GIF 960), `light` |
 | Video | `video --format`, `--mode`, `--fps`, `--out` | `mp4` or `gif`; a mode id; frames per second; a path | `mp4`, first mode, 30 (GIF 12), `dist/` |

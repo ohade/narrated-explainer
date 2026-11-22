@@ -66,6 +66,7 @@ def _parser() -> argparse.ArgumentParser:
     check = commands.add_parser("check", help="Validate story, narration and built files")
     check.add_argument("directory", type=Path)
     check.add_argument("--json", action="store_true", help="Versioned JSON result")
+    check.add_argument("--no-voice", action="store_true", help="Skip the narration checks while drafting silently")
     model_commands = commands.add_parser("models", help="Manage pinned local models").add_subparsers(dest="model_command", required=True)
     model_commands.add_parser("fetch", help="Fetch missing or invalid model bytes")
     diagnostic = commands.add_parser("doctor", help="Inspect packages, models, encoder and browser")
@@ -87,7 +88,12 @@ def _run(args) -> int:
         print(build(args.directory, args.fragment, args.no_voice))
     elif args.command == "snapshots":
         from .export import snapshots
-        for path in snapshots(args.directory, no_voice=args.no_voice, width=args.width, scheme=args.scheme):
+        from .sheets import contact_sheets
+        frames = snapshots(args.directory, no_voice=args.no_voice, width=args.width, scheme=args.scheme)
+        for path in frames:
+            print(path)
+        print("Contact sheets (review these first):")
+        for path in contact_sheets(frames):
             print(path)
     elif args.command == "video":
         from .export import video
@@ -109,7 +115,7 @@ def _run(args) -> int:
         return 0 if report["ok"] else 1
     elif args.command == "check":
         from .check import check_story
-        report = check_story(args.directory)
+        report = check_story(args.directory, no_voice=args.no_voice)
         if args.json:
             print(json.dumps(report))
         else:

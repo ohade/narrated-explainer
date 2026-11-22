@@ -53,7 +53,8 @@ object's mapping, and the moments follow the facts in teaching order.
    derived from these, so captions, labels and drawings can never disagree.
 4. **Positions**: an optional intro of two or three steps that sets the scene, then five to ten
    moments. For each: `t`, what changes on screen (one change per moment), the caption, and an
-   optional sound cue.
+   optional sound cue. More than about ten moments in one mode and level usually means two
+   explainers; `explainer check` warns about it.
 
 Show the storyboard to the user when they asked to review the plan; otherwise continue.
 
@@ -72,28 +73,26 @@ Read `references/storytelling.md` for caption and pacing rules.
 
 The contract for both files is `docs/architecture.md` in the repository.
 
-## 4. Record, build, check
+## 4. Draft without a voice
+
+Recording is the slowest step, and every caption edit makes it stale. So draft and fix the story
+silently, and record the voice once, at the end:
 
 ```bash
-explainer narrate <dir>    # records each caption, checks it with speech-to-text, aligns words
-explainer build <dir>      # writes <dir>/dist/<id>.html
-explainer check <dir>      # story rules, stale narration, no network calls in the file
+explainer build <dir> --no-voice      # writes <dir>/dist/<id>.html without narration
+explainer check <dir> --no-voice      # story rules, layout, network calls; skips only the voice
+explainer snapshots <dir> --no-voice  # every frame, plus contact sheets, in <dir>/dist/snapshots/
 ```
 
-`explainer check` also verifies that the explainer fits common screens; it is not done until check passes.
-When check warns about small text at 1440x900 or larger, shorten or split the scene before calling it done.
+`explainer check` also verifies that the explainer fits common screens. When it warns about small
+text at 1440x900 or larger, shorten or split the scene.
 
-When a caption fails the speech check, fix the text, not the threshold: add a `pronounce`
-entry, rephrase, or give the moment a `say` override.
+## 5. Look at the contact sheets
 
-## 5. Look at every frame
-
-```bash
-explainer snapshots <dir>  # one PNG per mode and position in <dir>/dist/snapshots/
-```
-
-Open every PNG and look at it. Passing tests do not show overlapping labels. Fix and repeat
-until all of these hold, using `references/quality-checklist.md`:
+`explainer snapshots` writes one PNG per mode and position, and contact sheets (`sheet-*.png`):
+up to six labelled frames each, one set per mode and level. Look at every sheet. Open a single
+frame only when a sheet shows a suspect spot. Passing tests do not show overlapping labels. Fix
+and repeat until all of these hold, using `references/quality-checklist.md`:
 
 - No text overlaps other text, a box edge or a token, at any position and in every mode.
 - Every label is readable: at least 18 units high, a halo where it crosses a line.
@@ -103,7 +102,20 @@ until all of these hold, using `references/quality-checklist.md`:
   used, no moment depends on something not yet shown, and someone new to the subject can say what
   causes the outcome and what changes if one input changes.
 
-## 6. Deliver
+## 6. Record the voice and run the final check
+
+When the captions are final:
+
+```bash
+explainer narrate <dir>    # records each caption, checks it with speech-to-text, aligns words
+explainer build <dir>      # rebuilds the file with the voice
+explainer check <dir>      # every check, the voice included; it is not done until this passes
+```
+
+When a caption fails the speech check, fix the text, not the threshold: add a `pronounce`
+entry, rephrase, or give the moment a `say` override. A changed caption needs `narrate` again.
+
+## 7. Deliver
 
 Give the user the path to `dist/<id>.html` and one sentence: open it in a browser and press
 Play. Offer `explainer video <dir>` when they want an MP4 to share, and

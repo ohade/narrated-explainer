@@ -1,6 +1,6 @@
 # Quality checklist
 
-Run through this list with the snapshots open. Each item names what to look for and the usual fix.
+Run through this list with the contact sheets (`dist/snapshots/sheet-*.png`) open. Each item names what to look for and the usual fix.
 
 ## Every frame
 
