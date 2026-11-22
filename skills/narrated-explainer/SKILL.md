@@ -55,6 +55,12 @@ object's mapping, and the moments follow the facts in teaching order.
    moments. For each: `t`, what changes on screen (one change per moment), the caption, and an
    optional sound cue. More than about ten moments in one mode and level usually means two
    explainers; `explainer check` warns about it.
+5. **Levels**: always start with the simple version. The first level is the whole story in three
+   to five moments; each deeper level keeps those moments and adds only the details that answer
+   the next question about one of them. "Layer the depth" in `references/simplifying.md` gives
+   the rules. Declare them in `story.json` as `levels` (shallowest first); a moment or intro step
+   with a `levels` list plays only at those levels. The viewer picks a level from the start menu,
+   and each level needs at least three moments and a `heart` moment.
 
 Show the storyboard to the user when they asked to review the plan; otherwise continue.
 

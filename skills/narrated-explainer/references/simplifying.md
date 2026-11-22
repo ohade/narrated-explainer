@@ -26,12 +26,33 @@ their order. Each part below produces something step 2 of the skill builds from.
 ## Name things plainly
 
 - **Replace identifiers with words.** Code identifiers, internal service names, config keys and
-  acronyms become plain words. The shipped example says "App", "Gateway" and "Services A and B"
-  (examples/deadline-race/story.json), not the names from the codebase it describes.
+  acronyms become plain words. The shipped example says "App" and "Gateway"
+  (examples/deadline-race/story.json), not the names from the codebase it describes. Its
+  "Services A and B" predate the next rule.
+- **No single-letter names.** Never call an actor "A", "B" or "C". The voice reads "A" like the
+  word "a", so "A sends a request" sounds like "a sends a request", and the speech check cannot
+  catch it because the transcript matches. "B" and "C" are heard as "be" and "see": a caption with
+  "a stuck B" failed the speech check three takes in a row (2026-11-22). Name each actor by a role
+  the viewer already knows: Checkout, Payments, Search; App, Gateway.
 - **One term per thing.** Choose one word for each actor and use it in every caption, label and
   the description. Two names for one thing read as two things.
 - **Code names go in a legend.** When the viewer must know the real identifier, put it in the
   description or a legend, never in a caption. The voice would stumble on it anyway.
+
+## Layer the depth
+
+- **The first level is the simple story, complete.** Three to five moments a newcomer can follow
+  from cause to outcome, with no detail that needs a second explanation. A viewer who stops here
+  must still be able to say the takeaway.
+- **A deeper level replays the same story and opens it up.** Keep the simple level's moments, in
+  the same order, and add each detail under the moment it explains. A detail that cannot attach
+  to one of those moments starts a new thread; that is a second explainer, not a deeper level.
+- **A detail earns its place by answering the next question.** Add it only when it answers the
+  question a reviewer or interviewer would ask next about that moment ("why not a longer
+  timeout?"), or when it changes a decision. A detail that only makes the story longer or more
+  complete is cut.
+- **Show the attachment.** The deeper level's caption names the simple moment it opens, so the
+  viewer keeps the whole picture while zooming in.
 
 ## Pick the object
 
