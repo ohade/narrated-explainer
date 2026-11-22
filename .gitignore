@@ -7,3 +7,4 @@ narration/
 
 # The demo ships its recorded narration so it builds without the models.
 !examples/*/narration/
+.DS_Store
